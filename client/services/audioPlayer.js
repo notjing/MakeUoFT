@@ -1,69 +1,79 @@
 // ── gapless-audio.js ──────────────────────────────────────────────────────────
-// Replaces the per-chunk file-write + didJustFinish chain with duration-based
-// scheduling, eliminating the ~100ms polling gap between chunks.
+// Gapless playback engine for Lyria PCM chunks on React Native / Expo.
 //
-// Strategy:
-//   1. Convert b64 PCM → WAV in memory (no disk until play time)
-//   2. Track "expectedFinishAt" using wall-clock time + chunk duration
-//   3. Fire playNext() via setTimeout(delay) instead of waiting for didJustFinish
-//   4. Overlap load time: start loading chunk N+1 the moment chunk N begins playing
+// Key fixes over v1:
+//   1. playAsync() startup latency compensation via PLAY_LATENCY_MS
+//   2. Deeper preload queue (not just 1 entry) so network jitter doesn't stall
+//   3. advanceToNext fires early enough for the NEXT preload to begin loading
+//      the chunk AFTER that — keeps the pipeline 2 entries deep at all times
+//   4. Stall recovery: if preloaded entry isn't ready yet, we wait for it
+//      with a tight poll instead of immediately awaiting a fresh load
+//   5. bufferedCount replaced with queue.length checks to avoid drift
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
 
-const SAMPLE_RATE = 48_000;
-const CHANNELS = 2;
-const BYTES_PER_SAMPLE = 2; // int16
+const SAMPLE_RATE       = 48_000;
+const CHANNELS          = 2;
+const BYTES_PER_SAMPLE  = 2; // int16
 
-// How many chunks to pre-buffer before starting playback.
-// Lower = less initial latency, but more risk of underrun.
-const CLIENT_BUFFER_SIZE = 6;
+// How many chunks to buffer before starting playback.
+// 4 gives ~2–3 seconds of buffer at typical Lyria chunk sizes.
+const CLIENT_BUFFER_SIZE = 4;
 
-// How many ms before a chunk ends to kick off the next load.
-// Tune down if you hear gaps; tune up if you hear overlaps.
-const PRELOAD_LEAD_MS = 80;
+// How early before a chunk ends to fire advanceToNext().
+// Must be long enough to: swap buffers + start the next sound's internal init.
+// Too small → gap. Too large → you cut the chunk short.
+const ADVANCE_LEAD_MS = 120;
 
-// ── state (module-level singletons) ──────────────────────────────────────────
-let queue = [];            // pending b64 strings
-let activeEntry = null;    // { sound, path, durationMs }
-let preloadedEntry = null; // already loaded, waiting to play
-let scheduleTimer = null;  // setTimeout handle for next swap
-let bufferedCount = 0;
-let running = false;
-let stopping = false;
+// Compensation for expo-av's playAsync() internal startup latency.
+// This is subtracted from the scheduled swap so the next sound starts
+// outputting audio right as the previous one finishes.
+// Tune up if you still hear a gap; tune down if you hear an overlap/click.
+const PLAY_LATENCY_MS = 40;
+
+// How long to wait (in ms) between polls when the preload slot isn't ready yet.
+const STALL_POLL_MS = 10;
+
+// ── state ─────────────────────────────────────────────────────────────────────
+let queue         = [];   // pending b64 strings not yet loading
+let preloadQueue  = [];   // { sound, path, durationMs } entries fully loaded
+let activeEntry   = null; // currently playing entry
+let scheduleTimer = null;
+let running       = false;
+let stopping      = false;
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-/** Returns duration of a raw PCM payload in milliseconds. */
 function pcmDurationMs(pcmByteLength) {
   const samples = pcmByteLength / (CHANNELS * BYTES_PER_SAMPLE);
   return (samples / SAMPLE_RATE) * 1000;
 }
 
-/** Build a WAV file in memory and write it once to cache. */
 async function b64PcmToWavUri(b64) {
   const pcm = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+
   const header = new ArrayBuffer(44);
   const v = new DataView(header);
   const s = (o, str) => { for (let i = 0; i < str.length; i++) v.setUint8(o + i, str.charCodeAt(i)); };
-  s(0,  "RIFF");  v.setUint32(4,  36 + pcm.length, true);
-  s(8,  "WAVE");  s(12, "fmt ");
+
+  s(0,  "RIFF"); v.setUint32(4,  36 + pcm.length, true);
+  s(8,  "WAVE"); s(12, "fmt ");
   v.setUint32(16, 16, true);  v.setUint16(20, 1, true);
   v.setUint16(22, CHANNELS, true);  v.setUint32(24, SAMPLE_RATE, true);
   v.setUint32(28, SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE, true);
-  v.setUint16(32, CHANNELS * BYTES_PER_SAMPLE, true);  v.setUint16(34, 16, true);
-  s(36, "data");  v.setUint32(40, pcm.length, true);
+  v.setUint16(32, CHANNELS * BYTES_PER_SAMPLE, true); v.setUint16(34, 16, true);
+  s(36, "data"); v.setUint32(40, pcm.length, true);
 
   const wav = new Uint8Array(44 + pcm.length);
   wav.set(new Uint8Array(header));
   wav.set(pcm, 44);
 
-  // base64-encode the complete WAV for FileSystem
   let binary = "";
-  const chunk = 8192;
-  for (let i = 0; i < wav.length; i += chunk) {
-    binary += String.fromCharCode(...wav.subarray(i, i + chunk));
+  const chunkSize = 8192;
+  for (let i = 0; i < wav.length; i += chunkSize) {
+    binary += String.fromCharCode(...wav.subarray(i, i + chunkSize));
   }
 
   const path = `${FileSystem.cacheDirectory}ac_${Date.now()}_${Math.random().toString(36).slice(2)}.wav`;
@@ -77,7 +87,7 @@ async function loadEntry(b64) {
     const { sound } = await Audio.Sound.createAsync(
       { uri: path },
       { shouldPlay: false, volume: 1.0 },
-      null,           // no status callback — we schedule by time instead
+      null,
     );
     return { sound, path, durationMs };
   } catch (e) {
@@ -86,25 +96,50 @@ async function loadEntry(b64) {
   }
 }
 
-async function startPlayback() {
-  if (running || stopping) return;
+// Kick off loading the next N chunks from the raw queue into preloadQueue.
+// Call this whenever a slot opens up to keep the pipeline full.
+function fillPreloadQueue() {
+  // Keep up to 2 entries preloaded ahead at all times
+  const TARGET_PRELOAD_DEPTH = 2;
 
-  // Pop from front of queue (already has CLIENT_BUFFER_SIZE chunks)
-  const b64 = queue.shift();
-  if (!b64) return;
+  while (preloadQueue.length < TARGET_PRELOAD_DEPTH && queue.length > 0) {
+    const b64 = queue.shift();
+    // Push a Promise-like sentinel so we know a load is in flight.
+    // When it resolves we'll push the real entry.
+    const placeholder = { loading: true };
+    preloadQueue.push(placeholder);
 
-  running = true;
-
-  // Load the first chunk; simultaneously preload the second
-  const entry = await loadEntry(b64);
-  if (!entry || stopping) { running = false; return; }
-
-  if (queue.length > 0) {
-    const nextB64 = queue.shift();
-    loadEntry(nextB64).then((e) => { if (!stopping) preloadedEntry = e; });
+    loadEntry(b64).then((entry) => {
+      if (stopping) {
+        if (entry) cleanup(entry);
+        return;
+      }
+      // Replace placeholder with the real entry
+      const idx = preloadQueue.indexOf(placeholder);
+      if (idx !== -1) {
+        preloadQueue[idx] = entry ?? { error: true };
+      }
+    });
   }
+}
 
-  await playEntry(entry);
+// Wait until preloadQueue[0] is a fully loaded entry (not a placeholder).
+async function waitForNextEntry() {
+  while (true) {
+    if (stopping) return null;
+    if (preloadQueue.length === 0) {
+      // Queue is empty — maybe more chunks will arrive, or we're done
+      return null;
+    }
+    const head = preloadQueue[0];
+    if (!head.loading && !head.error) return head;
+    if (head.error) {
+      preloadQueue.shift(); // skip bad entry
+      continue;
+    }
+    // Still loading — poll
+    await new Promise((r) => setTimeout(r, STALL_POLL_MS));
+  }
 }
 
 async function playEntry(entry) {
@@ -117,45 +152,36 @@ async function playEntry(entry) {
   } catch (e) {
     console.warn("[audio] playAsync error:", e);
     cleanup(entry);
-    advanceToNext();
+    await advanceToNext(entry);
     return;
   }
 
-  // Schedule the swap PRELOAD_LEAD_MS before this chunk ends.
-  // This gives us time to start loading the chunk after next while
-  // the preloaded one is already sitting in memory.
-  const swapDelay = Math.max(0, entry.durationMs - PRELOAD_LEAD_MS);
+  // Fire the swap early enough to account for:
+  //   - buffer swap overhead (ADVANCE_LEAD_MS)
+  //   - playAsync() startup latency on the next sound (PLAY_LATENCY_MS)
+  const swapDelay = Math.max(0, entry.durationMs - ADVANCE_LEAD_MS - PLAY_LATENCY_MS);
   scheduleTimer = setTimeout(() => advanceToNext(entry), swapDelay);
 }
 
 async function advanceToNext(finishedEntry) {
   scheduleTimer = null;
 
-  // Swap in the preloaded entry immediately (no disk I/O here)
-  const next = preloadedEntry;
-  preloadedEntry = null;
+  // Grab the next ready entry
+  const next = await waitForNextEntry();
 
-  // Start loading the one after that in parallel
-  if (queue.length > 0) {
-    const b64 = queue.shift();
-    loadEntry(b64).then((e) => { if (!stopping) preloadedEntry = e; });
+  if (next) {
+    preloadQueue.shift(); // consume it
+    fillPreloadQueue();   // immediately start loading the next one in line
   }
 
-  // Clean up finished chunk slightly after handing off
+  // Clean up the finished chunk slightly after handing off audio to the next
   if (finishedEntry) {
-    setTimeout(() => cleanup(finishedEntry), 200);
+    setTimeout(() => cleanup(finishedEntry), 300);
   }
 
   if (!next) {
-    // Nothing preloaded — fall back to loading from queue or stall
-    if (queue.length > 0) {
-      const b64 = queue.shift();
-      const entry = await loadEntry(b64);
-      await playEntry(entry);
-    } else {
-      // Queue empty; pause until enqueueChunk() wakes us up
-      running = false;
-    }
+    // Nothing left — go idle. enqueueChunk() will wake us if more arrive.
+    running = false;
     return;
   }
 
@@ -164,43 +190,58 @@ async function advanceToNext(finishedEntry) {
 
 function cleanup(entry) {
   if (!entry) return;
-  entry.sound.unloadAsync().catch(() => {});
-  FileSystem.deleteAsync(entry.path, { idempotent: true }).catch(() => {});
+  entry.sound?.unloadAsync().catch(() => {});
+  if (entry.path) {
+    FileSystem.deleteAsync(entry.path, { idempotent: true }).catch(() => {});
+  }
 }
 
 // ── public API ────────────────────────────────────────────────────────────────
 
 function enqueueChunk(b64) {
   if (stopping) return;
-  bufferedCount++;
+
   queue.push(b64);
+  fillPreloadQueue(); // opportunistically start preloading
 
-  // If we're running and the preload slot is free, fill it now
-  if (running && !preloadedEntry && queue.length === 1) {
-    const next = queue.shift();
-    loadEntry(next).then((e) => { if (!stopping) preloadedEntry = e; });
-  }
+  const totalBuffered = queue.length + preloadQueue.length;
 
-  // Start playback once we've buffered enough chunks
-  if (!running && bufferedCount >= CLIENT_BUFFER_SIZE) {
+  // Wake up playback if it stalled waiting for more chunks
+  if (running === false && activeEntry === null && totalBuffered >= CLIENT_BUFFER_SIZE) {
     startPlayback();
   }
 }
 
+async function startPlayback() {
+  if (running || stopping) return;
+  running = true;
+
+  // Wait for the first entry to be ready
+  const first = await waitForNextEntry();
+  if (!first || stopping) { running = false; return; }
+
+  preloadQueue.shift();
+  fillPreloadQueue();
+
+  await playEntry(first);
+}
+
 function clearAudio() {
   stopping = true;
-  running = false;
-  bufferedCount = 0;
-  queue = [];
+  running  = false;
 
   clearTimeout(scheduleTimer);
   scheduleTimer = null;
 
-  if (activeEntry) { cleanup(activeEntry); activeEntry = null; }
-  if (preloadedEntry) { cleanup(preloadedEntry); preloadedEntry = null; }
+  // Cleanup everything in flight
+  if (activeEntry)  { cleanup(activeEntry);  activeEntry  = null; }
+  for (const entry of preloadQueue) {
+    if (entry && !entry.loading && !entry.error) cleanup(entry);
+  }
+  preloadQueue = [];
+  queue        = [];
 
-  // Reset stopping flag after a tick so enqueueChunk works again next session
   setTimeout(() => { stopping = false; }, 50);
 }
 
-export { enqueueChunk, clearAudio };    
+export { enqueueChunk, clearAudio };
