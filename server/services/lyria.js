@@ -20,7 +20,6 @@ export async function createLyriaSession({ onChunk, onError, onClose }) {
             if (!chunk.data) continue;
             chunkCount++;
             lastChunkAt = Date.now();
-            console.log(`🎵 Chunk #${chunkCount}, size: ${chunk.data.length} chars`);
             onChunk(chunk.data);
           }
         }
@@ -38,30 +37,35 @@ export async function createLyriaSession({ onChunk, onError, onClose }) {
     },
   });
 
+  // Default start
   await session.setWeightedPrompts({
-    weightedPrompts: [{ text: "very standard pop music", weight: 1.0 }],
+    weightedPrompts: [{ text: "silence", weight: 1.0 }],
   });
 
   await session.setMusicGenerationConfig({
-    musicGenerationConfig: { bpm: 120, temperature: 1.5 },
+    musicGenerationConfig: { bpm: 120, temperature: 1.0 },
   });
 
   await session.play();
-  console.log("✅ Lyria: play called, waiting for audio...");
+  console.log("✅ Lyria: play called, waiting for conductor...");
 
-  // Detect if the stream stalls (no chunks for >5s) and log it
+  // Stall detection
   stalledTimer = setInterval(() => {
     const msSinceLast = Date.now() - lastChunkAt;
     if (chunkCount > 0 && msSinceLast > 5000) {
-      console.warn(`⚠️  No chunk received for ${Math.round(msSinceLast / 1000)}s (last was chunk #${chunkCount})`);
+      console.warn(`⚠️  No chunk received for ${Math.round(msSinceLast / 1000)}s`);
     }
   }, 2000);
 
+  // ── KEY CHANGE HERE ────────────────────────────────────────────────────────
+  // Return the control methods so the Conductor can drive the car
   return {
     stop: async () => {
       console.log("⏹️  Stopping Lyria session...");
       clearInterval(stalledTimer);
       try { await session.close(); } catch (_) {}
     },
+    // Expose these so the Conductor can call them:
+    setWeightedPrompts: (args) => session.setWeightedPrompts(args),
   };
 }
