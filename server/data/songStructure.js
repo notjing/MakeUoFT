@@ -21,6 +21,18 @@ const pickMultiple = (arr, n) => {
   return [...arr].sort(() => 0.5 - Math.random()).slice(0, n);
 };
 
+function handleBioUpdate (packet, conductor){
+  if (!conductor) {
+    return;
+  }
+
+  const { heartRate, galvanicSkinResponse } = packet;
+
+  console.log(`Processing bio data for session: HR: ${heartRate}`);
+
+
+}
+
 
 export const generateSongPackage = () => {
   const intensity = pick(["low", "med", "high"]);

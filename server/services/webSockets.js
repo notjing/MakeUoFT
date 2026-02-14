@@ -34,6 +34,18 @@ export const registerSocketHandlers = (io) => {
       }
     });
 
+    socket.on("receiveBioPacket", (packet) => {
+        const conductor = conductors.get(socket.id);
+        
+        if (!conductor) {
+            console.warn(`[${socket.id}] Received bio packet but no active conductor found.`);
+            return;
+        }
+
+        handleBioUpdate(packet, conductor);
+    })
+
+
     // --- Stop Music Handler ---
     socket.on("stopMusic", () => {
       handleCleanup(socket.id);
@@ -45,6 +57,7 @@ export const registerSocketHandlers = (io) => {
       handleCleanup(socket.id);
       console.log(`[${socket.id}] disconnected`);
     });
+
   });
 };
 
