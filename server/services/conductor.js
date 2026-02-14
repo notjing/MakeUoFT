@@ -17,8 +17,8 @@ export class SongConductor {
 
     const songData = generateSongPackage();
 
-    this.globalContext = songData.globalContext(); 
-    this.timeline = songData.timeline();
+    this.globalContext = songData.globalContext; 
+    this.timeline = songData.timeline;
     
   }
 
@@ -88,8 +88,8 @@ export class SongConductor {
       
       //rerolls everything
       const { globalContext, timeline } = generateSongPackage();
-      this.globalContext = globalContext();
-      this.timeline = timeline();
+      this.globalContext = globalContext;
+      this.timeline = timeline;
       
       nextIndex = 0; 
     }
