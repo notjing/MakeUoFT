@@ -133,6 +133,8 @@ export default function Button() {
       socket.off("musicStopped");
       socket.off("musicError");
       socket.off("audioChunk");
+
+      socket.disconnect();
       clearAudio();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

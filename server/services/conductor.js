@@ -1,5 +1,5 @@
 // ── services/conductor.js ─────────────────────────────────────────────────────
-import { GLOBAL_CONTEXT, SONG_TIMELINE } from "../data/songStructure.js";
+import { generateSongPackage } from "../data/songStructure.js";
 
 export class SongConductor {
   constructor(socket, lyriaSession) {
@@ -7,7 +7,6 @@ export class SongConductor {
     this.lyria = lyriaSession;
     
     // State Tracking
-    this.timeline = SONG_TIMELINE;
     this.currentIndex = 0;
     this.sectionStartTime = 0;
     this.timer = null;
@@ -15,6 +14,12 @@ export class SongConductor {
     // Flags to prevent spamming the API
     this.isRunning = false;
     this.isTransitioning = false; 
+
+    const songData = generateSongPackage();
+
+    this.globalContext = songData.globalContext(); 
+    this.timeline = songData.timeline();
+    
   }
 
   start() {
@@ -23,6 +28,7 @@ export class SongConductor {
     this.currentIndex = 0;
     this.sectionStartTime = Date.now();
     
+    console.log(`global context: ${this.globalContext}`)
     console.log(`[Conductor] Starting timeline at: ${this.timeline[0].id}`);
     
     // Play the first section immediately
@@ -74,11 +80,17 @@ export class SongConductor {
   }
 
   advanceToNextSection() {
-    const nextIndex = this.currentIndex + 1;
+    let nextIndex = this.currentIndex + 1;
 
     // Check if song is over
     if (nextIndex >= this.timeline.length) {
-      console.log("[Conductor] Song finished. Looping back to Intro...");
+      console.log("[Conductor] Song finished. Generating NEW song and looping...");
+      
+      //rerolls everything
+      const { globalContext, timeline } = generateSongPackage();
+      this.globalContext = globalContext();
+      this.timeline = timeline();
+      
       nextIndex = 0; 
     }
 
@@ -95,7 +107,7 @@ export class SongConductor {
 
   async playSection(section) {
     // Construct the "Steady State" prompt
-    const fullPrompt = `${GLOBAL_CONTEXT} ${section.prompt}`;
+    const fullPrompt = `${this.globalContext} ${section.prompt}`;
     
     // Tell frontend we changed sections
     this.socket.emit("sectionChange", { id: section.id, text: section.prompt });
@@ -115,7 +127,7 @@ export class SongConductor {
 
     // Construct the "Morphing" prompt
     // We combine the CURRENT style with the INSTRUCTION to move forward.
-    const transitionPrompt = `${GLOBAL_CONTEXT} Currently ${section.prompt} BUT NOW ${section.transitionInstruction}`;
+    const transitionPrompt = `${this.globalContext} Currently ${section.prompt} BUT NOW ${section.transitionInstruction}`;
 
     try {
       await this.lyria.setWeightedPrompts({
