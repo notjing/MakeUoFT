@@ -1,14 +1,13 @@
 // services/socketHandler.js
-import { createLyriaSession } from "./lyria.js"; // Ensure path is correct
-import { SongConductor } from "./conductor.js";  // Ensure path is correct
+import { createLyriaSession } from "./lyria.js"; 
+import { SongConductor } from "./conductor.js";  
 import { 
     handleUserUpdate, 
     handleBioUpdate, 
     handleCameraContext,
-    generateSongPackage // We need this to get the initial random band
-} from "../data/songStructure.js"; // Adjusted import based on your previous files
+    generateSongPackage 
+} from "../data/songStructure.js"; 
 
-// Keep state local to this module
 const conductors = new Map();
 
 export const registerSocketHandlers = (io) => {
@@ -17,7 +16,7 @@ export const registerSocketHandlers = (io) => {
 
     // --- Start Music Handler ---
     socket.on("startMusic", async (initialData) => {
-      // 1. If user sent initial settings (instruments/genres/moods), apply them first
+      // 1. If user sent initial settings, apply them first
       if (initialData) {
         handleUserUpdate(initialData);
       }
@@ -37,22 +36,16 @@ export const registerSocketHandlers = (io) => {
 
         // 3. Initialize the Conductor
         const conductor = new SongConductor(socket, lyria);
+        
+        // --- NEW LOGIC: PAUSE FOR CAMERA ---
+        // We set a flag indicating this session is ready but waiting for eyes/camera
+        conductor.isWaitingForCamera = true;
         conductors.set(socket.id, conductor);
         
-        // 4. Generate the first song package to see what instruments were picked
-        // Note: Your conductor.start() likely calls generateSongPackage internally.
-        // We need to capture that result or just call it here to get the band data.
-        const initialPackage = generateSongPackage(); 
+        console.log(`[${socket.id}] Initialized. Waiting for camera context to start...`);
         
-        // 5. Tell the Frontend what instruments were actually picked (Feedback Loop)
-        if (initialPackage.activeInstruments) {
-            socket.emit("activeBand", initialPackage.activeInstruments);
-        }
-
-        // 6. Start the music flow
-        conductor.start(); 
-        
-        socket.emit("musicStarted");
+        // NOTE: We do NOT call conductor.start() or emit "musicStarted" yet.
+        // The frontend will remain in the "CONNECTING" (Yellow) state.
 
       } catch (err) {
         console.error(`[${socket.id}] Failed to start:`, err);
@@ -60,48 +53,57 @@ export const registerSocketHandlers = (io) => {
       }
     });
 
+    // --- Camera Context Handler (The Trigger) ---
+    socket.on("receiveCameraContext", (data) => {
+        const conductor = conductors.get(socket.id);
+        
+        // If we don't have a conductor yet (user hasn't pressed start), ignore or store logic
+        if (!conductor) return;
+
+        // 1. Apply camera insights to the song structure
+        handleCameraContext(data);
+
+        // 2. CHECK: Are we waiting to start?
+        if (conductor.isWaitingForCamera) {
+            console.log(`[${socket.id}] Camera context received. Starting music now.`);
+            
+            // Clear the flag so we don't restart on the next frame
+            conductor.isWaitingForCamera = false;
+
+            // Generate the first package now that we have the camera data (Genre/Mood/etc)
+            const initialPackage = generateSongPackage(); 
+            
+            // Tell Frontend what instruments were picked based on the camera
+            if (initialPackage.activeInstruments) {
+                socket.emit("activeBand", initialPackage.activeInstruments);
+            }
+
+            // Start the actual music flow
+            conductor.start(); 
+            socket.emit("musicStarted"); // This flips the frontend to "STREAMING" (Blue)
+        } else {
+            // Already playing? Just update instruments if the camera changed them
+            if (data.instruments) {
+                socket.emit("activeBand", data.instruments);
+            }
+        }
+    });
+
     // --- Bio Data Handler ---
     socket.on("receiveBioPacket", (packet) => {
         const conductor = conductors.get(socket.id);
-        
-        if (!conductor) {
-            // console.warn(`[${socket.id}] Received bio packet but no active conductor.`);
-            return;
-        }
-
-        // Pass the conductor so the bio handler can influence the current song
-        handleBioUpdate(packet, conductor);
-    });
-
-    // --- Camera Context Handler ---
-    socket.on("receiveCameraContext", (data) => {
-        const conductor = conductors.get(socket.id);
         if (!conductor) return;
-
-        // Apply camera insights to the song structure
-        handleCameraContext(data);
-        
-        // Optional: If camera changes instruments, notify frontend immediately
-        if (data.instruments) {
-            socket.emit("activeBand", data.instruments);
-        }
+        handleBioUpdate(packet, conductor);
     });
 
     // --- User UI Update Handler ---
     socket.on("updateSession", (data) => {
-      console.log(`[${socket.id}] User updated session:`, data);
-      
-      // 1. Update the global state in songStructure.js
-      handleUserUpdate(data);
-
-      // 2. Trigger the timeline regeneration for THIS specific user
       const conductor = conductors.get(socket.id);
-      if (conductor) {
+      if (conductor && !conductor.isWaitingForCamera) {
+          handleUserUpdate(data);
           conductor.updateUserSpecs(); 
-          console.log(`[${socket.id}] Timeline regenerated with new specs.`);
       }
     });
-
 
     // --- Stop Music Handler ---
     socket.on("stopMusic", () => {
@@ -117,19 +119,15 @@ export const registerSocketHandlers = (io) => {
     socket.on("stop", () => {
       io.emit("stop");
       console.log("STOPPED")
-
     })
 
-    // --- Disconnect Handler ---
     socket.on("disconnect", () => {
       handleCleanup(socket.id);
       console.log(`[${socket.id}] disconnected`);
     });
-
   });
 };
 
-// Helper to keep logic DRY
 function handleCleanup(socketId) {
   const conductor = conductors.get(socketId);
   if (conductor) {
