@@ -19,16 +19,16 @@ import { enqueueChunk, clearAudio } from "@/services/audioPlayer.js";
 const BASS = ["Bass Clarinet", "Cello", "Didgeridoo", "Tuba", "Upright Bass"];
 const HARMONY = [
   "Accordion", "Dirty Synths", "Electric Guitar", "Electric Piano", "Flamenco Guitar",
-  "Guitar", "Harmonica", "Harp", "Harpsichord", "Moog Oscillations", "Ragtime Piano",
+  "Guitar", "Harmonica", "Harp", "Harpsichord", "Moog Oscillations",
   "Smooth Pianos", "Spacey Synths", "Synth Pads", "Viola Ensemble", "Warm Acoustic Guitar"
 ];
 const MELODY = [
   "Alto Saxophone", "Bagpipes", "Clarinet", "Flute", "French Horn",
-  "Piccolo", "Trombone", "Trumpet", "Violin"
+  "Piccolo", "Trombone", "Trumpet", "Violin", "Glockenspiel",
+  "Marimba", "Piano"
 ];
 const PERCUSSION = [
-  "808 Hip Hop Beat", "Bongos", "Drumline", "Funk Drums", "Glockenspiel", 
-  "Marimba", "Nuclear Explosion", "Steel Drum", "Timpani"
+  "808 Hip Hop Beat", "Bongos", "Drumline", "Drum Set", "Explosions", "Steel Drum", "Timpani"
 ];
 
 const GENRES = ["Lofi", "Ambient", "Cinematic", "Drone", "Jazz", "Synthwave"];
@@ -147,7 +147,7 @@ export default function Button() {
 
     socket.on("activeBand", (activeInstruments) => {
       if (Array.isArray(activeInstruments)) {
-        setSelectedInstruments(prev => prev.size === 0 ? new Set(activeInstruments) : prev);
+        setSelectedInstruments(new Set(activeInstruments));
       }
     });
 

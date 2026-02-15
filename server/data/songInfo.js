@@ -2,10 +2,8 @@ export const percussion = [
   "808 Hip Hop Beat",
   "Bongos",
   "Drumline",
-  "Funk Drums",
-  "Glockenspiel",
-  "Marimba",
-  "Nuclear Explosion",
+  "Drum Set",
+  "Explosions",
   "Steel Drum",
   "Timpani"
 ];
@@ -29,7 +27,6 @@ export const harmony = [
   "Harp",
   "Harpsichord",
   "Moog Oscillations",
-  "Ragtime Piano",
   "Smooth Pianos",
   "Spacey Synths",
   "Synth Pads",
@@ -46,7 +43,10 @@ export const melody = [
   "Piccolo",
   "Trombone",
   "Trumpet",
-  "Violin"
+  "Violin",
+  "Glockenspiel",
+  "Marimba",
+  "Piano"
 ];
 
 export const lowIntensityGenres = [
