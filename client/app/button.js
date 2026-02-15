@@ -274,13 +274,11 @@ export default function Button() {
     }
   };
 
-  // ── STYLES INTERPOLATION ────────────────────────────────────────────────────
   const bgColor    = glowAnim.interpolate({ inputRange: [0, 1], outputRange: ["#0a0a0f", "#050d1a"] });
   const buttonBg   = glowAnim.interpolate({ inputRange: [0, 1], outputRange: ["#1a1a2e", "#0066ff"] });
   const shadowOpac = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
   const statusColor = { READY: "#3a3a5c", CONNECTING: "#ffaa00", STREAMING: "#0066ff", ERROR: "#ff4444" };
 
-  // ── RENDER HELPERS ──────────────────────────────────────────────────────────
   const renderChips = (data, set, setter) => (
     <View style={styles.chipContainer}>
       {data.map((item) => {

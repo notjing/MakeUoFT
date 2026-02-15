@@ -89,14 +89,17 @@ export const registerSocketHandlers = (io) => {
 
     // --- User UI Update Handler ---
     socket.on("updateSession", (data) => {
-        console.log(`[${socket.id}] User updated session:`, data);
-        
-        // 1. Update the backend state
-        handleUserUpdate(data);
+      console.log(`[${socket.id}] User updated session:`, data);
+      
+      // 1. Update the global state in songStructure.js
+      handleUserUpdate(data);
 
-        // 2. (Optional) If you want the music to react *immediately* (e.g. change instruments mid-song),
-        // you would need to call a method on the conductor here.
-        // For now, this just updates the "Next" segment generation.
+      // 2. Trigger the timeline regeneration for THIS specific user
+      const conductor = conductors.get(socket.id);
+      if (conductor) {
+          conductor.updateUserSpecs(); 
+          console.log(`[${socket.id}] Timeline regenerated with new specs.`);
+      }
     });
 
 

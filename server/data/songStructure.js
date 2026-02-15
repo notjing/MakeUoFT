@@ -57,7 +57,7 @@ export function handleUserUpdate(data) {
   console.log("User Update Received:", data);
 
   // 1. Update Genres & Moods
-  if (data.genres) activeContext.genres = data.genres;
+  if (data.genre) activeContext.genre = data.genre;
   if (data.moods) activeContext.moods = data.moods;
 
   // 2. Update Instruments

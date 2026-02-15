@@ -105,6 +105,12 @@ export class SongConductor {
     this.playSection(nextSection);
   }
 
+  updateUserSpecs() {
+    const { globalContext, timeline } = generateSongPackage();
+    this.globalContext = globalContext;
+    this.timeline = timeline;
+  }
+
   async playSection(section) {
     // Construct the "Steady State" prompt
     const fullPrompt = `${this.globalContext} ${section.prompt}`;
