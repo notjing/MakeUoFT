@@ -109,6 +109,14 @@ export const registerSocketHandlers = (io) => {
       socket.emit("musicStopped");
     });
 
+    socket.on("start", () => {
+      io.emit("start");
+    })
+
+    socket.on("stop", () => {
+      io.emit("stop");
+    })
+
     // --- Disconnect Handler ---
     socket.on("disconnect", () => {
       handleCleanup(socket.id);
