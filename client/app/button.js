@@ -35,20 +35,27 @@ const TABS = ["INSTRUMENTS", "GENRES", "MOODS"];
 const SAMPLE_RATE = 48_000;
 const CHANNELS = 2;
 
+// ── AUDIO UTILS ──────────────────────────────────────────────────────────────
 function base64ToAudioBuffer(ctx, b64) {
-  const binary = atob(b64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  const int16 = new Int16Array(bytes.buffer);
-  const samplesPerChannel = Math.floor(int16.length / CHANNELS);
-  const audioBuffer = ctx.createBuffer(CHANNELS, samplesPerChannel, SAMPLE_RATE);
-  for (let ch = 0; ch < CHANNELS; ch++) {
-    const channelData = audioBuffer.getChannelData(ch);
-    for (let i = 0; i < samplesPerChannel; i++) {
-      channelData[i] = int16[i * CHANNELS + ch] / 32768;
+  if (!b64) return null;
+  try {
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const int16 = new Int16Array(bytes.buffer);
+    const samplesPerChannel = Math.floor(int16.length / CHANNELS);
+    const audioBuffer = ctx.createBuffer(CHANNELS, samplesPerChannel, SAMPLE_RATE);
+    for (let ch = 0; ch < CHANNELS; ch++) {
+      const channelData = audioBuffer.getChannelData(ch);
+      for (let i = 0; i < samplesPerChannel; i++) {
+        channelData[i] = int16[i * CHANNELS + ch] / 32768;
+      }
     }
+    return audioBuffer;
+  } catch (e) {
+    console.error("Audio conversion error:", e);
+    return null;
   }
-  return audioBuffer;
 }
 
 export default function Button() {
@@ -64,18 +71,20 @@ export default function Button() {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [activeTab, setActiveTab] = useState("INSTRUMENTS");
 
-  // Biometrics State (New)
+  // Biometrics State
   const [metrics, setMetrics] = useState({ bpm: "--", temp: "--", sweat: "--" });
 
+  // Animation Refs
   const glowAnim  = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
+  // Audio Refs
   const audioCtxRef      = useRef(null);
   const nextStartTimeRef = useRef(0);
   const pulseLoopRef     = useRef(null);
 
-  // ── Animations ──────────────────────────────────────────────────────────────
+  // ── ANIMATIONS ──────────────────────────────────────────────────────────────
   const startPulse = () => {
     pulseLoopRef.current = Animated.loop(
       Animated.sequence([
@@ -105,22 +114,19 @@ export default function Button() {
     ]).start();
   };
 
-  // ── Biometrics Simulation ───────────────────────────────────────────────────
+  // ── BIOMETRICS SIMULATION ───────────────────────────────────────────────────
   useEffect(() => {
     let interval;
     if (isOn) {
-      // Initialize base values
       let currentBpm = 75;
       let currentTemp = 36.6;
       let currentSweat = 12;
 
       interval = setInterval(() => {
-        // Add slight random fluctuation to simulate live sensor data
         currentBpm += (Math.random() - 0.5) * 4;
         currentTemp += (Math.random() - 0.5) * 0.1;
         currentSweat += (Math.random() - 0.5) * 2;
 
-        // Clamp values
         if (currentBpm < 60) currentBpm = 60;
         if (currentBpm > 140) currentBpm = 140;
         if (currentSweat < 0) currentSweat = 0;
@@ -130,14 +136,14 @@ export default function Button() {
           temp: currentTemp.toFixed(1),
           sweat: Math.floor(currentSweat) + "%"
         });
-      }, 2000); // Update every 2 seconds
+      }, 2000);
     } else {
       setMetrics({ bpm: "--", temp: "--", sweat: "--" });
     }
     return () => clearInterval(interval);
   }, [isOn]);
 
-  // ── Socket & Audio Lifecycle ────────────────────────────────────────────────
+  // ── SOCKET & AUDIO LIFECYCLE ────────────────────────────────────────────────
   useEffect(() => {
     if (Platform.OS !== "web") {
       Audio.requestPermissionsAsync();
@@ -156,6 +162,8 @@ export default function Button() {
       stopPulse();
       clearAudio();
     });
+    
+    // Status updates
     socket.on("musicStarted", () => { setStatus("STREAMING"); startPulse(); });
     socket.on("musicStopped", () => { setStatus("READY"); stopPulse(); clearAudio(); });
     socket.on("musicError",   (msg) => {
@@ -167,18 +175,30 @@ export default function Button() {
       clearAudio();
     });
 
+    // 🎵 NEW: Listen for Active Band from Backend (Feedback Loop)
+    socket.on("activeBand", (activeInstruments) => {
+      console.log("Backend Active Band:", activeInstruments);
+      if (Array.isArray(activeInstruments)) {
+        // This will update the UI to light up the specific buttons
+        setSelectedInstruments(new Set(activeInstruments));
+      }
+    });
+
+    // Audio Streaming
     socket.on("audioChunk", (b64) => {
       if (Platform.OS === "web") {
         if (!audioCtxRef.current) return;
         try {
           const buf = base64ToAudioBuffer(audioCtxRef.current, b64);
-          const src = audioCtxRef.current.createBufferSource();
-          src.buffer = buf;
-          src.connect(audioCtxRef.current.destination);
-          const now = audioCtxRef.current.currentTime;
-          const startAt = Math.max(now, nextStartTimeRef.current);
-          src.start(startAt);
-          nextStartTimeRef.current = startAt + buf.duration;
+          if (buf) {
+            const src = audioCtxRef.current.createBufferSource();
+            src.buffer = buf;
+            src.connect(audioCtxRef.current.destination);
+            const now = audioCtxRef.current.currentTime;
+            const startAt = Math.max(now, nextStartTimeRef.current);
+            src.start(startAt);
+            nextStartTimeRef.current = startAt + buf.duration;
+          }
         } catch (e) {
           console.warn("Web audio error:", e);
         }
@@ -194,34 +214,34 @@ export default function Button() {
     };
   }, []);
 
-  // ── Selection Logic ─────────────────────────────────────────────────────────
-  const updateBackend = (insts, genres, moods) => {
+  // ── SELECTION LOGIC ─────────────────────────────────────────────────────────
+  
+  // Automatically notify backend when selection changes
+  // Note: If "activeBand" event updates the state, this will fire back to server.
+  // This is acceptable as it keeps the "conductor" in sync with the UI.
+  useEffect(() => {
     if (isOn && socket?.connected) {
+      console.log("Syncing session with backend...");
       socket.emit("updateSession", {
-        instruments: Array.from(insts),
-        genres: Array.from(genres),
-        moods: Array.from(moods)
+        instruments: Array.from(selectedInstruments),
+        genres: Array.from(selectedGenres),
+        moods: Array.from(selectedMoods)
       });
     }
-  };
+  }, [selectedInstruments, selectedGenres, selectedMoods]);
 
   const toggleSelection = (item, set, setter) => {
     const next = new Set(set);
     if (next.has(item)) next.delete(item);
     else next.add(item);
-    
     setter(next);
-    const nextInsts  = set === selectedInstruments ? next : selectedInstruments;
-    const nextGenres = set === selectedGenres ? next : selectedGenres;
-    const nextMoods  = set === selectedMoods ? next : selectedMoods;
-
-    updateBackend(nextInsts, nextGenres, nextMoods);
   };
 
   const toggle = () => {
     if (!socket?.connected) { setStatus("ERROR"); return; }
 
     if (!isOn) {
+      // STARTING
       if (Platform.OS === "web") {
         if (!audioCtxRef.current) {
           audioCtxRef.current = new (window.AudioContext ?? window.webkitAudioContext)({ sampleRate: SAMPLE_RATE });
@@ -234,12 +254,14 @@ export default function Button() {
       animateToggle(1);
       setIsOn(true);
       
+      // Emit start with current selections
       socket.emit("startMusic", { 
         instruments: Array.from(selectedInstruments),
         genres: Array.from(selectedGenres),
         moods: Array.from(selectedMoods)
       });
     } else {
+      // STOPPING
       animateToggle(0);
       setIsOn(false);
       setStatus("READY");
@@ -252,13 +274,13 @@ export default function Button() {
     }
   };
 
-  // ── Styles Interpolation ────────────────────────────────────────────────────
+  // ── STYLES INTERPOLATION ────────────────────────────────────────────────────
   const bgColor    = glowAnim.interpolate({ inputRange: [0, 1], outputRange: ["#0a0a0f", "#050d1a"] });
   const buttonBg   = glowAnim.interpolate({ inputRange: [0, 1], outputRange: ["#1a1a2e", "#0066ff"] });
   const shadowOpac = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
   const statusColor = { READY: "#3a3a5c", CONNECTING: "#ffaa00", STREAMING: "#0066ff", ERROR: "#ff4444" };
 
-  // ── Render Helpers ──────────────────────────────────────────────────────────
+  // ── RENDER HELPERS ──────────────────────────────────────────────────────────
   const renderChips = (data, set, setter) => (
     <View style={styles.chipContainer}>
       {data.map((item) => {
@@ -300,7 +322,7 @@ export default function Button() {
     }
   };
 
-  // ── Render ──────────────────────────────────────────────────────────────────
+  // ── RENDER ──────────────────────────────────────────────────────────────────
   return (
     <Animated.View style={[styles.container, { backgroundColor: bgColor }]}>
       <SafeAreaView style={styles.safeArea}>
