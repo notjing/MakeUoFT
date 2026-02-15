@@ -32,7 +32,7 @@ const PERCUSSION = [
 ];
 
 const GENRES = ["Lofi", "Ambient", "Cinematic", "Drone", "Jazz", "Synthwave"];
-const MOODS = ["Chill", "Dark", "Energetic", "Ethereal", "Focus", "Melancholic", "Uplifting"];
+const MOODS = ["Happy", "Sad", "Energetic", "Calm", "Dark", "Aggressive", "Uplifting", "Dreamy", "Nostalgic", "Epic"];
 
 const TABS = ["INSTRUMENTS", "GENRES", "MOODS"];
 
