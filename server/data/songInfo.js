@@ -1,73 +1,52 @@
-export const lowIntensityInstruments = [
-  "Bass Clarinet",
+export const percussion = [
+  "808 Hip Hop Beat",
   "Bongos",
-  "Cello",
-  "Clavichord",
-  "Didgeridoo",
-  "Dulcimer",
-  "Hang Drum",
-  "Harp",
-  "Kalimba",
-  "Koto",
-  "Lyre",
-  "Maracas",
+  "Drumline",
+  "Funk Drums",
+  "Glockenspiel",
   "Marimba",
-  "Mbira",
-  "Mellotron",
-  "Ocarina",
-  "Rhodes Piano",
+  "Nuclear Explosion",
+  "Steel Drum",
+  "Timpani"
+];
+
+export const bass = [
+  "Bass Clarinet",
+  "Cello",
+  "Didgeridoo",
+  "Tuba",
+  "Upright Bass"
+];
+
+export const harmony = [
+  "Accordion",
+  "Dirty Synths",
+  "Electric Guitar",
+  "Electric Piano",
+  "Flamenco Guitar",
+  "Guitar",
+  "Harmonica",
+  "Harp",
+  "Harpsichord",
+  "Moog Oscillations",
+  "Ragtime Piano",
   "Smooth Pianos",
   "Spacey Synths",
   "Synth Pads",
-  "Vibraphone",
   "Viola Ensemble",
-  "Warm Acoustic Guitar",
-  "Woodwinds"
+  "Warm Acoustic Guitar"
 ];
 
-export const mediumIntensityInstruments = [
-  "Accordion",
+export const melody = [
   "Alto Saxophone",
-  "Balalaika Ensemble",
-  "Banjo",
-  "Boomy Bass",
-  "Bouzouki",
-  "Buchla Synths",
-  "Charango",
-  "Conga Drums",
-  "Fiddle",
-  "Glockenspiel",
-  "Guitar",
-  "Harmonica",
-  "Harpsichord",
-  "Hurdy-gurdy",
-  "Mandolin",
-  "Metallic Twang",
-  "Moog Oscillations",
-  "Persian Tar",
-  "Pipa",
-  "Precision Bass",
-  "Ragtime Piano",
-  "Sitar",
-  "Slide Guitar",
-  "Steel Drum",
-  "Tabla",
-  "Tuba"
-];
-
-export const highIntensityInstruments = [
-  "303 Acid Bass",
-  "808 Hip Hop Beat",
   "Bagpipes",
-  "Dirty Synths",
-  "Djembe",
-  "Drumline",
-  "Flamenco Guitar",
-  "Funk Drums",
-  "Shamisen",
-  "Shredding Guitar",
-  "TR-909 Drum Machine",
-  "Trumpet"
+  "Clarinet",
+  "Flute",
+  "French Horn",
+  "Piccolo",
+  "Trombone",
+  "Trumpet",
+  "Violin"
 ];
 
 export const lowIntensityGenres = [
