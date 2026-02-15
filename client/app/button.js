@@ -31,8 +31,8 @@ const PERCUSSION = [
   "808 Hip Hop Beat", "Bongos", "Drumline", "Drum Set", "Explosions", "Steel Drum", "Timpani"
 ];
 
+const MOODS = ["Happy", "Sad", "Energetic", "Calm", "Dark", "Aggressive", "Uplifting", "Dreamy", "Nostalgic", "Epic"];
 const GENRES = ["Lofi", "Hip Hop", "Bossa Nova", "Cool Jazz", "Jazz", "Indie Folk", "Classic Rock", "Disco Funk", "Deep House", "Indie Pop", "Orchestra", "EDM", "Drum & Bass", "Techno", "Trap", "Electro Swing"];
-const MOODS = ["Chill", "Dark", "Energetic", "Ethereal", "Focus", "Melancholic", "Uplifting"];
 
 const TABS = ["INSTRUMENTS", "GENRES", "MOODS"];
 
