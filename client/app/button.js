@@ -351,14 +351,6 @@ export default function Button() {
             <View style={styles.statDivider} /><View style={styles.statBox}><Text style={styles.statLabel}>GSR (SWEAT)</Text><Text style={[styles.statValue, { color: '#ccff00' }]}>{metrics.sweat}</Text></View>
           </View>
 
-          {/* 3. VISUAL REASONING DISPLAY */}
-          <View style={styles.contextContainer}>
-            <Text style={styles.contextLabel}>VISION CONTEXT</Text>
-            <ScrollView style={styles.contextScroll} nestedScrollEnabled={true} showsVerticalScrollIndicator={true}>
-              <Text style={styles.contextText}>{cameraContext}</Text>
-            </ScrollView>
-          </View>
-
         </View>
         <Modal animationType="slide" transparent={true} visible={settingsVisible} onRequestClose={() => setSettingsVisible(false)}>
           <View style={styles.modalOverlay}>
