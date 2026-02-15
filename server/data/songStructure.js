@@ -50,9 +50,9 @@ const DEFAULT_INSTRUMENT_MAP = {
 
 let activeContext = {
     genre: null,
-    bpm: 124,
+    bpm: 124, // Default start
     key: null,
-    instruments: {...DEFAULT_INSTRUMENT_MAP},
+    instruments: { ...DEFAULT_INSTRUMENT_MAP },
     moods: []
 };
 
@@ -66,10 +66,9 @@ export function handleUserUpdate(data) {
     // 2. Update Instruments
     if (data.instruments && Array.isArray(data.instruments)) {
         // Reset all to false first so we only play what is currently selected
-        const nextInstruments = {...DEFAULT_INSTRUMENT_MAP};
+        const nextInstruments = { ...DEFAULT_INSTRUMENT_MAP };
 
         data.instruments.forEach((instName) => {
-            // Only set true if it exists in our map (prevents typos/errors)
             if (nextInstruments.hasOwnProperty(instName)) {
                 nextInstruments[instName] = true;
             }
@@ -81,33 +80,31 @@ export function handleUserUpdate(data) {
 
 export function handleBioUpdate(packet, conductor) {
     if (!conductor) return;
-    const {bpm, gsr, temp} = packet.data;
+    const { bpm, gsr, temp } = packet.data;
     console.log("BPM:", bpm, "GSR:", gsr, "Temp:", temp);
 
-    const keyCalc = (36 - temp) + (50 - gsr) + (80 - bpm)
+    const keyCalc = (36 - temp) + (50 - gsr) + (80 - bpm);
 
     if (keyCalc > 0 && (activeContext.key == null || activeContext.key.split(" ")[1] == "Minor")) {
-        activeContext.key = pick(majorKeys)
+        activeContext.key = pick(majorKeys);
     } else if (keyCalc <= 0 && (activeContext.key == null || activeContext.key.split(" ")[1] == "Major")) {
-        activeContext.key = pick(minorKeys)
+        activeContext.key = pick(minorKeys);
     }
 
+    // Logic for mapping bio-BPM to musical BPM
     activeContext.bpm = bpm * 5 / 4 + 17.5;
 }
 
 export function handleCameraContext(raw_data) {
-    const data = JSON.parse(raw_data)
+    const data = JSON.parse(raw_data);
     if (data) {
         console.log("Context Received:", data);
-        console.log(data.instruments)
 
         activeContext.genre = data.genre || null;
         activeContext.moods = data.moods || [];
 
-        // Reset instruments to default (all false)
-        const nextInstruments = {...DEFAULT_INSTRUMENT_MAP};
+        const nextInstruments = { ...DEFAULT_INSTRUMENT_MAP };
 
-        // Update with incoming data
         if (data.instruments && Array.isArray(data.instruments)) {
             data.instruments.forEach((instName) => {
                 if (nextInstruments.hasOwnProperty(instName)) {
@@ -116,7 +113,7 @@ export function handleCameraContext(raw_data) {
             });
         }
 
-        if (data.genre){
+        if (data.genre) {
             activeContext.genre = data.genre;
         }
 
@@ -131,33 +128,30 @@ export const generateSongPackage = () => {
     const intensity = pick(["low", "med", "high"]);
     const key = activeContext.key ? activeContext.key : pick(majorKeys.concat(minorKeys));
 
-    // 2. Define Defaults based on Intensity (Restored Logic)
+    // 2. Define Defaults based on Intensity
     const defaultGenreList = intensity === "low" ? lowIntensityGenres : intensity === "med" ? mediumIntensityGenres : highIntensityGenres;
     const defaultMoodList = intensity === "low" ? lowIntensityMoods : intensity === "med" ? mediumIntensityMoods : highIntensityMoods;
 
-    // 3. Resolve Context (User Selection vs Fallback)
+    // 3. Resolve Context
     const genre = activeContext.genre ? activeContext.genre : pick(defaultGenreList);
     const mood = (activeContext.moods && activeContext.moods.length > 0)
         ? pick(activeContext.moods)
         : pick(defaultMoodList);
 
     // 4. Resolve Instruments
-    // Get list of currently "true" instruments from the map
     let activeInstrumentList = Object.keys(activeContext.instruments).filter(
         (key) => activeContext.instruments[key] === true
     );
 
-    // Fallback: If no instruments selected, pick 4 random ones from defaults
-    const band = activeInstrumentList
+    const band = activeInstrumentList;
+
     // 5. Categorize the Band
-    // Filter the active 'band' against our known lists to create pools for logic
     const myBass = band.filter(i => bass.includes(i));
     const myHarmony = band.filter(i => harmony.includes(i));
     const myMelody = band.filter(i => melody.includes(i));
     const myPercussion = band.filter(i => percussion.includes(i));
 
     // 6. Smart Picker Function
-    // Returns a specific instrument for a specific role (e.g. "Get me a bass instrument")
     const getInst = (role) => {
         let pool = [];
         if (role === 'bass') pool = myBass;
@@ -169,37 +163,30 @@ export const generateSongPackage = () => {
             myMelody.push("Piano");
         }
 
-        // 1. Best case: Use the instrument the user picked for this role
         if (pool.length > 0) return pick(pool);
-
         return getInst('melody');
     };
 
-
-    // 7. Dynamic prompt helpers based on genre/mood
+    // 7. Dynamic prompt helpers
     const getGenreStyle = () => {
         const genreStyles = {
-            // Electronic
             "EDM": "four-on-the-floor electronic dance",
             "House": "groovy house with shuffled hi-hats",
             "Techno": "hypnotic repetitive techno",
             "Ambient": "ethereal ambient soundscape",
             "Synthwave": "retro 80s synthwave",
             "Drum and Bass": "fast-paced jungle breakbeats",
-            // Acoustic/Traditional
             "Jazz": "improvisational jazz swing",
             "Classical": "orchestral classical",
             "Folk": "acoustic folk storytelling",
             "Blues": "soulful blues with bent notes",
             "Country": "twangy country",
-            // Modern
             "Hip Hop": "boom-bap hip hop groove",
             "R&B": "smooth R&B with neo-soul",
             "Pop": "catchy pop hooks",
             "Rock": "driving rock energy",
             "Metal": "aggressive metal power",
             "Indie": "lo-fi indie aesthetic",
-            // World
             "Latin": "Latin rhythms with clave patterns",
             "Reggae": "offbeat reggae skank",
             "Afrobeat": "polyrhythmic afrobeat"
@@ -226,7 +213,6 @@ export const generateSongPackage = () => {
     const style = getGenreStyle();
     const texture = getMoodTexture();
 
-    // Build instrument list string for prompts
     console.log("Active Band:", band);
     const activeList = band.length > 0 ? band.join(", ") : "Piano";
     const primaryMelody = getInst('melody');
@@ -234,15 +220,29 @@ export const generateSongPackage = () => {
     const primaryBass = getInst('bass');
     const primaryPercussion = getInst('percussion');
 
-    // Frame as a specific recording session with only these instruments present
+    // ── CONFIGURATION & GLOBAL PROMPT ──────────────────────────────────────────
+
+    // A. Apply API Configuration (Force BPM)
+    if (typeof setMusicGenerationConfig === "function") {
+        const targetBPM = Math.round(activeContext.bpm); // Ensure Integer
+        console.log(`Forcing API Config -> BPM: ${targetBPM}`);
+        
+        setMusicGenerationConfig({
+            bpm: targetBPM
+        });
+    } else {
+        console.warn("setMusicGenerationConfig is not defined. BPM will rely on model defaults.");
+    }
+
+    // B. Build Global Text Context (BPM REMOVED from text to avoid conflict)
     const globalContext = `Studio recording session with exactly these instruments in the room: ${activeList}. 
-This is a ${genre} track in ${key}, ${mood} mood, ${activeContext.bpm} BPM.
+This is a ${genre} track in ${key}, ${mood} mood.
 The only musicians present are playing: ${activeList}. No other instruments exist in this recording. All instruments should not have any super long periods of silence.
 MIXING: ${primaryMelody} is the loudest and most powerful instrument in the mix, sitting on top. Percussion should not overpower any instrument.
 All other instruments are mixed quieter to support ${primaryMelody}.`;
 
-    // 8. Generate Timeline - each prompt explicitly states the ONLY instruments being recorded
-    // MELODY INSTRUMENT (${primaryMelody}) should be featured prominently in every section and LOUDEST in the mix
+
+    // 8. Generate Timeline
     const timeline = [
         {
             id: "Intro",
@@ -316,5 +316,5 @@ All other instruments are mixed quieter to support ${primaryMelody}.`;
         }
     ];
 
-    return {globalContext, timeline, activeInstruments: band, activeGenre: genre, activeMood: mood};
+    return { globalContext, timeline, activeInstruments: band, activeGenre: genre, activeMood: mood };
 };
