@@ -74,7 +74,7 @@ export const registerSocketHandlers = (io) => {
             // 1. Generate the band based on this new camera data
             const initialPackage = generateSongPackage(); 
             if (initialPackage.activeInstruments) {
-                socket.emit("activeBand", initialPackage.activeInstruments);
+                socket.emit("activeBand", data.activeInstruments);
             }
 
             // 2. Unmute the audio gate

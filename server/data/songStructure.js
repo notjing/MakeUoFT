@@ -142,9 +142,7 @@ export const generateSongPackage = () => {
   );
 
   // Fallback: If no instruments selected, pick 4 random ones from defaults
-  const band = activeInstrumentList.length > 0 
-    ? activeInstrumentList 
-    : pickMultiple([...bass, ...harmony, ...melody, ...percussion], 4);
+  const band = activeInstrumentList
   // 5. Categorize the Band
   // Filter the active 'band' against our known lists to create pools for logic
   const myBass       = band.filter(i => bass.includes(i));
