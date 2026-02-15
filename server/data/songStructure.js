@@ -1,3 +1,4 @@
+import e from "cors";
 import { 
   lowIntensityGenres,
   mediumIntensityGenres,
@@ -49,6 +50,8 @@ const DEFAULT_INSTRUMENT_MAP = {
 
 let activeContext = {
   genre: null,
+  bpm: 124,
+  key: null,
   instruments: { ...DEFAULT_INSTRUMENT_MAP },
   moods: [] 
 };
@@ -78,8 +81,18 @@ export function handleUserUpdate(data) {
 
 export function handleBioUpdate (packet, conductor){
   if (!conductor) return;
-  const { heartRate, galvanicSkinResponse } = packet;
-  // console.log(`Processing bio data for session: HR: ${heartRate}`);
+  const { bpm, gsr, temp } = packet.data;
+
+  const keyCalc = (36 - temp) + (50 - gsr) + (80 - bpm)
+
+  if(keyCalc > 0 && (activeContext.key == null || activeContext.key.split(" ")[1] == "Minor")){
+    activeContext.key = pick(majorKeys)
+  } 
+  else if(keyCalc <= 0 && (activeContext.key == null || activeContext.key.split(" ")[1] == "Major")){
+    activeContext.key = pick(minorKeys)
+  }
+
+  activeContext.bpm = bpm * 5 / 4 + 17.5; 
 }
 
 export function handleCameraContext (data) {
@@ -110,7 +123,7 @@ export function handleCameraContext (data) {
 export const generateSongPackage = () => {
   // 1. Determine Intensity & Key
   const intensity = pick(["low", "med", "high"]);
-  const key = pick(majorKeys.concat(minorKeys));
+  const key = activeContext.key? activeContext.key : pick(majorKeys.concat(minorKeys));
   
   // 2. Define Defaults based on Intensity (Restored Logic)
   const defaultGenreList = intensity === "low" ? lowIntensityGenres : intensity === "med" ? mediumIntensityGenres : highIntensityGenres;
@@ -164,7 +177,7 @@ export const generateSongPackage = () => {
 };
 
   const globalContext = `PRIORITIZE THE INSTRUMENTS. IF YOU ARE REQUESTED TO INCOPORATE AN INSTRUMENT, DO NOT IGNORE IT BECAUSE OF THE GENRE/MOOD
-  Key: ${key}. Genre: ${genre}. Mood: ${mood}.  BPM: 124. High Fidelity.`;
+  Key: ${key}. Genre: ${genre}. Mood: ${mood}.  BPM: ${activeContext.bpm}. High Fidelity.`;
   
 
   // 7. Generate Timeline
