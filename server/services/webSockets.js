@@ -111,10 +111,13 @@ export const registerSocketHandlers = (io) => {
 
     socket.on("start", () => {
       io.emit("start");
+      console.log("STARTED")
     })
 
     socket.on("stop", () => {
       io.emit("stop");
+      console.log("STOPPED")
+
     })
 
     // --- Disconnect Handler ---
