@@ -1,7 +1,4 @@
 import { 
-  lowIntensityInstruments, 
-  mediumIntensityInstruments, 
-  highIntensityInstruments,
   lowIntensityGenres,
   mediumIntensityGenres,
   highIntensityGenres,
@@ -90,39 +87,37 @@ export function handleCameraContext (data) {
 // ── MAIN GENERATOR ────────────────────────────────────────────────────────────
 
 export const generateSongPackage = () => {
-  // 1. Determine Intensity & Defaults
+  // 1. Determine Intensity & Key
   const intensity = pick(["low", "med", "high"]);
   const key = pick(majorKeys.concat(minorKeys));
   
+  // 2. Define Defaults based on Intensity (Restored Logic)
   const defaultGenreList = intensity === "low" ? lowIntensityGenres : intensity === "med" ? mediumIntensityGenres : highIntensityGenres;
   const defaultMoodList  = intensity === "low" ? lowIntensityMoods  : intensity === "med" ? mediumIntensityMoods  : highIntensityMoods;
-  const defaultInstrList = intensity === "low" ? lowIntensityInstruments : intensity === "med" ? mediumIntensityInstruments : highIntensityInstruments;
 
-  // 2. Resolve Context (User Selection vs Fallback)
+  // 3. Resolve Context (User Selection vs Fallback)
   const genre = activeContext.genre ? activeContext.genre : pick(defaultGenreList);
   const mood  = (activeContext.moods && activeContext.moods.length > 0)
     ? pick(activeContext.moods)
     : pick(defaultMoodList);
 
-  // 3. Resolve Instruments
+  // 4. Resolve Instruments
   // Get list of currently "true" instruments from the map
   let activeInstrumentList = Object.keys(activeContext.instruments).filter(
     (key) => activeContext.instruments[key] === true
   );
 
   // Fallback: If no instruments selected, pick 4 random ones from defaults
-  const band = (activeInstrumentList.length > 0) 
-    ? activeInstrumentList 
-    : pickMultiple(defaultInstrList, 4); 
+  const band = activeInstrumentList 
 
-  // 4. Categorize the Band
+  // 5. Categorize the Band
   // Filter the active 'band' against our known lists to create pools for logic
   const myBass       = band.filter(i => bass.includes(i));
   const myHarmony    = band.filter(i => harmony.includes(i));
   const myMelody     = band.filter(i => melody.includes(i));
   const myPercussion = band.filter(i => percussion.includes(i));
 
-  // 5. Smart Picker Function
+  // 6. Smart Picker Function
   // Returns a specific instrument for a specific role (e.g. "Get me a bass instrument")
   const getInst = (role) => {
     let pool = [];
@@ -144,7 +139,7 @@ export const generateSongPackage = () => {
 
   const globalContext = `Key: ${key}. Genre: ${genre}. Mood: ${mood}. Instruments: ${band.join(", ")}. BPM: 124. High Fidelity.`;
 
-  // 6. Generate Timeline
+  // 7. Generate Timeline
   const timeline = [
     {
       id: "Intro",

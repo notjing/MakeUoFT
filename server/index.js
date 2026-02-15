@@ -30,7 +30,7 @@ registerSocketHandlers(io);
 
 // 3. Handle SPA (React/Vue) routing
 // This must be placed AFTER your API routes (if any) but BEFORE the listen command
-app.get("*", (req, res) => {
+app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
