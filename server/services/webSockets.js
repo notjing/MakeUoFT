@@ -1,6 +1,12 @@
 // services/socketHandler.js
-import { createLyriaSession } from "../services/lyria.js";
-import { SongConductor } from "../services/conductor.js";
+import { createLyriaSession } from "./lyria.js"; // Ensure path is correct
+import { SongConductor } from "./conductor.js";  // Ensure path is correct
+import { 
+    handleUserUpdate, 
+    handleBioUpdate, 
+    handleCameraContext,
+    generateSongPackage // We need this to get the initial random band
+} from "../data/songStructure.js"; // Adjusted import based on your previous files
 
 // Keep state local to this module
 const conductors = new Map();
@@ -10,10 +16,16 @@ export const registerSocketHandlers = (io) => {
     console.log(`[${socket.id}] connected`);
 
     // --- Start Music Handler ---
-    socket.on("startMusic", async () => {
+    socket.on("startMusic", async (initialData) => {
+      // 1. If user sent initial settings (instruments/genres/moods), apply them first
+      if (initialData) {
+        handleUserUpdate(initialData);
+      }
+
       if (conductors.has(socket.id)) return;
 
       try {
+        // 2. Create the Audio Session
         const lyria = await createLyriaSession({
           onChunk: (base64) => socket.emit("audioChunk", base64),
           onError: (err) => socket.emit("musicError", err?.message ?? String(err)),
@@ -23,47 +35,69 @@ export const registerSocketHandlers = (io) => {
           },
         });
 
+        // 3. Initialize the Conductor
         const conductor = new SongConductor(socket, lyria);
         conductors.set(socket.id, conductor);
-        conductor.start();
+        
+        // 4. Generate the first song package to see what instruments were picked
+        // Note: Your conductor.start() likely calls generateSongPackage internally.
+        // We need to capture that result or just call it here to get the band data.
+        const initialPackage = generateSongPackage(); 
+        
+        // 5. Tell the Frontend what instruments were actually picked (Feedback Loop)
+        if (initialPackage.activeInstruments) {
+            socket.emit("activeBand", initialPackage.activeInstruments);
+        }
+
+        // 6. Start the music flow
+        conductor.start(); 
         
         socket.emit("musicStarted");
+
       } catch (err) {
         console.error(`[${socket.id}] Failed to start:`, err);
         socket.emit("musicError", err?.message ?? String(err));
       }
     });
 
+    // --- Bio Data Handler ---
     socket.on("receiveBioPacket", (packet) => {
         const conductor = conductors.get(socket.id);
         
         if (!conductor) {
-            console.warn(`[${socket.id}] Received bio packet but no active conductor found.`);
+            // console.warn(`[${socket.id}] Received bio packet but no active conductor.`);
             return;
         }
 
+        // Pass the conductor so the bio handler can influence the current song
         handleBioUpdate(packet, conductor);
-    })
+    });
 
+    // --- Camera Context Handler ---
     socket.on("receiveCameraContext", (data) => {
-        /*
-        {
-            "genre": "string (e.g., 'Lo-fi Jazz', 'Industrial Techno', 'Ambient Neo-Classical')",
-            "instruments": ["array of """ + str(num_instruments) + "-" + str(num_instruments + 2) + """ specific instruments"],
-            "visual_reasoning": "A brief (max 50 characters) explanation of why the lighting, textures, or architecture in the photo led to this musical choice."
-        }
-        */
-
         const conductor = conductors.get(socket.id);
+        if (!conductor) return;
 
-        if (!conductor) {
-            console.warn(`[${socket.id}] Received bio packet but no active conductor found.`);
-            return;
+        // Apply camera insights to the song structure
+        handleCameraContext(data);
+        
+        // Optional: If camera changes instruments, notify frontend immediately
+        if (data.instruments) {
+            socket.emit("activeBand", data.instruments);
         }
+    });
 
-        handleCameraContext(packet);
+    // --- User UI Update Handler ---
+    socket.on("updateSession", (data) => {
+        console.log(`[${socket.id}] User updated session:`, data);
+        
+        // 1. Update the backend state
+        handleUserUpdate(data);
 
-    })
+        // 2. (Optional) If you want the music to react *immediately* (e.g. change instruments mid-song),
+        // you would need to call a method on the conductor here.
+        // For now, this just updates the "Next" segment generation.
+    });
 
 
     // --- Stop Music Handler ---

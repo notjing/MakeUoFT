@@ -53,7 +53,28 @@ let activeContext = {
   moods: [] 
 };
 
-// ── EXPORTED HANDLERS ─────────────────────────────────────────────────────────
+export function handleUserUpdate(data) {
+  console.log("User Update Received:", data);
+
+  // 1. Update Genres & Moods
+  if (data.genres) activeContext.genres = data.genres;
+  if (data.moods) activeContext.moods = data.moods;
+
+  // 2. Update Instruments
+  if (data.instruments && Array.isArray(data.instruments)) {
+    // Reset all to false first so we only play what is currently selected
+    const nextInstruments = { ...DEFAULT_INSTRUMENT_MAP };
+
+    data.instruments.forEach((instName) => {
+      // Only set true if it exists in our map (prevents typos/errors)
+      if (nextInstruments.hasOwnProperty(instName)) {
+        nextInstruments[instName] = true;
+      }
+    });
+
+    activeContext.instruments = nextInstruments;
+  }
+}
 
 export function handleBioUpdate (packet, conductor){
   if (!conductor) return;
@@ -108,8 +129,9 @@ export const generateSongPackage = () => {
   );
 
   // Fallback: If no instruments selected, pick 4 random ones from defaults
-  const band = activeInstrumentList 
-
+  const band = activeInstrumentList.length > 0 
+    ? activeInstrumentList 
+    : pickMultiple([...bass, ...harmony, ...melody, ...percussion], 4);
   // 5. Categorize the Band
   // Filter the active 'band' against our known lists to create pools for logic
   const myBass       = band.filter(i => bass.includes(i));
@@ -120,22 +142,26 @@ export const generateSongPackage = () => {
   // 6. Smart Picker Function
   // Returns a specific instrument for a specific role (e.g. "Get me a bass instrument")
   const getInst = (role) => {
-    let pool = [];
-    if (role === 'bass') pool = myBass;
-    else if (role === 'harmony') pool = myHarmony;
-    else if (role === 'melody') pool = myMelody;
-    else if (role === 'percussion') pool = myPercussion;
+  let pool = [];
+  if (role === 'bass') pool = myBass;
+  else if (role === 'harmony') pool = myHarmony;
+  else if (role === 'melody') pool = myMelody;
+  else if (role === 'percussion') pool = myPercussion;
 
-    // A. Priority: Pick from the specific pool (e.g. user selected a Cello, return Cello for bass)
-    if (pool.length > 0) return pick(pool);
-    
-    // B. Fallback: If user didn't select this role, pick ANY active instrument 
-    // (e.g. user only selected Drums, so play the "melody" line on Drums)
-    if (band.length > 0) return pick(band);
-    
-    // C. Safety Net: Should never happen if defaults work
-    return "Synthesizer";
+  // 1. Best case: Use the instrument the user picked for this role
+  if (pool.length > 0) return pick(pool);
+  
+  // 2. Improvement: If user didn't pick for this role, use a GENERIC version of the role
+  // instead of picking a random instrument like "Cello" to play drums.
+  const genericFallbacks = {
+    bass: "Deep Synth Bass",
+    percussion: "Simple Electronic Beat",
+    harmony: "Soft Ambient Pads",
+    melody: "Clean Lead Synth"
   };
+  
+  return genericFallbacks[role] || "Synthesizer";
+};
 
   const globalContext = `Key: ${key}. Genre: ${genre}. Mood: ${mood}. Instruments: ${band.join(", ")}. BPM: 124. High Fidelity.`;
 
@@ -206,5 +232,5 @@ export const generateSongPackage = () => {
     }
   ];
 
-  return { globalContext, timeline };
+  return { globalContext, timeline , activeInstruments: band};
 };
