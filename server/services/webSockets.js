@@ -62,8 +62,9 @@ export const registerSocketHandlers = (io) => {
 
     // --- Bio Data Handler ---
     socket.on("receiveBioPacket", (packet) => {
+        console.log(`[${socket.id}] Received bio packet:`, packet);
         const conductor = conductors.get(socket.id);
-        
+
         if (!conductor) {
             // console.warn(`[${socket.id}] Received bio packet but no active conductor.`);
             return;
@@ -109,12 +110,22 @@ export const registerSocketHandlers = (io) => {
       socket.emit("musicStopped");
     });
 
+    socket.on("camera_status", (status) => {
+        console.log(`[${socket.id}] Camera status: ${status}`);
+    })
+
+      socket.on("camera_data", (data) => {
+        console.log(`[${socket.id}] Camera data received:`, data);
+      })
+
     socket.on("start", () => {
+        console.log(`[${socket.id}] start command received`);
       io.emit("start");
     })
 
     socket.on("stop", () => {
-      io.emit("stop");
+        console.log(`[${socket.id}] stop command received`);
+        io.emit("stop");
     })
 
     // --- Disconnect Handler ---

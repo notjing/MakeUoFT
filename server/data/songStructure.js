@@ -163,7 +163,7 @@ export const generateSongPackage = () => {
   return genericFallbacks[role] || "Synthesizer";
 };
 
-  const globalContext = `PRIORITIZE THE INSTRUMENTS. IF YOU ARE REQUESTED TO INCOPORATE AN INSTRUMENT, DO NOT IGNORE IT BECAUSE OF THE GENRE/MOOD
+  const globalContext = `YOU MUST PLAY, AND ONLY PLAY THE INSTRUMENTS PROVIDED. IF YOU ARE REQUESTED TO INCOPORATE AN INSTRUMENT, DO NOT IGNORE IT BECAUSE OF THE GENRE/MOOD
   Key: ${key}. Genre: ${genre}. Mood: ${mood}.  BPM: 124. High Fidelity.`;
   
 
@@ -178,7 +178,7 @@ export const generateSongPackage = () => {
     },
     {
       durationMs: 10_000, 
-      prompt: `Atmospheric ${getInst('harmony')}, filtered rhythm on ${getInst('percussion')}, low energy, ${mood} vibe.`,
+      prompt: `Atmospheric ${getInst('harm ony')}, filtered rhythm on ${getInst('percussion')}, low energy, ${mood} vibe.`,
       transitionWindowMs: 5_000, 
       transitionInstruction: `Slowly opening the filter, introducing ${getInst('melody')} textures.`
     },
