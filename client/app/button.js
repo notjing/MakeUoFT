@@ -230,9 +230,11 @@ export default function Button() {
         nextStartTimeRef.current = 0;
       }
       setStatus("CONNECTING"); setIsOn(true);
+      socket.emit("start")
       socket.emit("startMusic", { instruments: Array.from(selectedInstruments), genres: Array.from(selectedGenres), moods: Array.from(selectedMoods) });
     } else {
       animateToggle(0); setIsOn(false); setStatus("READY"); socket.emit("stopMusic"); clearAudio();
+      socket.emit("stop")
     }
   };
 
