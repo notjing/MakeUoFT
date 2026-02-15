@@ -8,6 +8,7 @@ import {
     generateSongPackage 
 } from "../data/songStructure.js"; 
 
+let print_counter = 0
 const conductors = new Map();
 
 export const registerSocketHandlers = (io) => {
@@ -59,42 +60,47 @@ export const registerSocketHandlers = (io) => {
     });
 
     socket.on("camera_data", (data) => {
-        const conductor = conductors.get(socket.id);
-        if (!conductor) return;
+        console.log(`[${socket.id}] Camera data received:`, data);
 
         // Ignore empty/invalid data
         if (!data || (Object.keys(data).length === 0)) return;
 
         handleCameraContext(data);
 
-        // CHECK: Are we currently waiting/muted?
-        if (conductor.isWaitingForCamera) {
-            console.log(`[${socket.id}] Camera data received. UNMUTING and STARTING.`);
-            
-            // 1. Generate the band based on this new camera data
-            const initialPackage = generateSongPackage(); 
-            if (initialPackage.activeInstruments) {
-                socket.emit("activeBand", data.activeInstruments);
+        // Broadcast camera data to ALL waiting conductors
+        let anyStarted = false;
+        for (const [socketId, conductor] of conductors.entries()) {
+            if (conductor.isWaitingForCamera) {
+                console.log(`[${socketId}] Camera data broadcast received. UNMUTING and STARTING.`);
+
+                // 1. Generate the band based on this new camera data
+                const initialPackage = generateSongPackage();
+                if (initialPackage.activeInstruments) {
+                    conductor.socket.emit("activeBand", initialPackage.activeInstruments);
+                }
+
+                // 2. Unmute the audio gate
+                conductor.isWaitingForCamera = false;
+
+                // 3. Start the conductor logic
+                conductor.start();
+
+                anyStarted = true;
             }
+        }
 
-            // 2. Unmute the audio gate
-            conductor.isWaitingForCamera = false;
-
-            // 3. Start the conductor logic
-            conductor.start(); 
-            
-            // 4. Tell Frontend to turn Blue
-            socket.emit("musicStarted");
-
-        } else {
-            // Already playing, just update instruments
-            if (data.instruments) {
-                socket.emit("activeBand", data.instruments);
-            }
+        // 4. Tell all Frontends to turn Blue if any conductor started
+        if (anyStarted) {
+            io.emit("musicStarted");
         }
     });
 
     socket.on("receiveBioPacket", (packet) => {
+        print_counter += 1
+        if (print_counter > 10) {
+            console.log(`[${socket.id}] 10 Bio Packets Received:`, packet);
+            print_counter = 0
+        }
         const conductor = conductors.get(socket.id);
         if (conductor && !conductor.isWaitingForCamera) {
             handleBioUpdate(packet, conductor);

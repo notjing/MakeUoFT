@@ -1,5 +1,5 @@
-import { Redirect } from 'expo-router';
+import Button from "@/app/button";
 
 export default function Index() {
-  return <Redirect href="/button" />;
+  return <Button/>;
 }

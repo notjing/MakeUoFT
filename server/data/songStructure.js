@@ -1,5 +1,5 @@
 import e from "cors";
-import { 
+import {
   lowIntensityGenres,
   mediumIntensityGenres,
   highIntensityGenres,
@@ -87,12 +87,12 @@ export function handleBioUpdate (packet, conductor){
 
   if(keyCalc > 0 && (activeContext.key == null || activeContext.key.split(" ")[1] == "Minor")){
     activeContext.key = pick(majorKeys)
-  } 
+  }
   else if(keyCalc <= 0 && (activeContext.key == null || activeContext.key.split(" ")[1] == "Major")){
     activeContext.key = pick(minorKeys)
   }
 
-  activeContext.bpm = bpm * 5 / 4 + 17.5; 
+  activeContext.bpm = bpm * 5 / 4 + 17.5;
 }
 
 export function handleCameraContext (data) {
@@ -174,8 +174,8 @@ export const generateSongPackage = () => {
   return genericFallbacks[role] || "Synthesizer";
 };
 
-  const globalContext = `PRIORITIZE THE INSTRUMENTS. IF YOU ARE REQUESTED TO INCOPORATE AN INSTRUMENT, DO NOT IGNORE IT BECAUSE OF THE GENRE/MOOD
-  Key: ${key}. Genre: ${genre}. Mood: ${mood}.  BPM: ${activeContext.bpm}. High Fidelity.`;
+  const globalContext = `YOU MUST PLAY, AND ONLY PLAY THE INSTRUMENTS PROVIDED. IF YOU ARE REQUESTED TO INCOPORATE AN INSTRUMENT, DO NOT IGNORE IT BECAUSE OF THE GENRE/MOOD
+  Key: ${key}. Genre: ${genre}. Mood: ${mood}.  BPM: 124. High Fidelity.`;
   
 
   // 7. Generate Timeline
