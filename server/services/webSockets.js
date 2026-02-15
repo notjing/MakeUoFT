@@ -45,6 +45,26 @@ export const registerSocketHandlers = (io) => {
         handleBioUpdate(packet, conductor);
     })
 
+    socket.on("receiveCameraContext", (data) => {
+        /*
+        {
+            "genre": "string (e.g., 'Lo-fi Jazz', 'Industrial Techno', 'Ambient Neo-Classical')",
+            "instruments": ["array of """ + str(num_instruments) + "-" + str(num_instruments + 2) + """ specific instruments"],
+            "visual_reasoning": "A brief (max 50 characters) explanation of why the lighting, textures, or architecture in the photo led to this musical choice."
+        }
+        */
+
+        const conductor = conductors.get(socket.id);
+
+        if (!conductor) {
+            console.warn(`[${socket.id}] Received bio packet but no active conductor found.`);
+            return;
+        }
+
+        handleCameraContext(packet);
+
+    })
+
 
     // --- Stop Music Handler ---
     socket.on("stopMusic", () => {
