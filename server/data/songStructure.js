@@ -163,12 +163,20 @@ export const generateSongPackage = () => {
   return genericFallbacks[role] || "Synthesizer";
 };
 
-  const globalContext = `Key: ${key}. Genre: ${genre}. Mood: ${mood}. Instruments: ${band.join(", ")}. BPM: 124. High Fidelity.`;
+  const globalContext = `PRIORITIZE THE INSTRUMENTS. IF YOU ARE REQUESTED TO INCOPORATE AN INSTRUMENT, DO NOT IGNORE IT BECAUSE OF THE GENRE/MOOD
+  Key: ${key}. Genre: ${genre}. Mood: ${mood}.  BPM: 124. High Fidelity.`;
+  
 
   // 7. Generate Timeline
   const timeline = [
     {
       id: "Intro",
+      durationMs: 20_000,
+      prompt: `PLAY THE CELLO PLEASE`,
+      transitionWindowMs: 0, 
+      transitionInstruction: null 
+    },
+    {
       durationMs: 10_000, 
       prompt: `Atmospheric ${getInst('harmony')}, filtered rhythm on ${getInst('percussion')}, low energy, ${mood} vibe.`,
       transitionWindowMs: 5_000, 
