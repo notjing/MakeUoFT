@@ -78,6 +78,12 @@ export const registerSocketHandlers = (io) => {
                 if (initialPackage.activeInstruments) {
                     conductor.socket.emit("activeBand", initialPackage.activeInstruments);
                 }
+                if (initialPackage.activeGenre) {
+                    conductor.socket.emit("activeGenre", initialPackage.activeGenre);
+                }
+                if (initialPackage.activeMood) {
+                    conductor.socket.emit("activeMood", initialPackage.activeMood);
+                }
 
                 // 2. Unmute the audio gate
                 conductor.isWaitingForCamera = false;
@@ -92,6 +98,12 @@ export const registerSocketHandlers = (io) => {
                 const updatedPackage = generateSongPackage();
                 if (updatedPackage.activeInstruments) {
                     conductor.socket.emit("activeBand", updatedPackage.activeInstruments);
+                }
+                if (updatedPackage.activeGenre) {
+                    conductor.socket.emit("activeGenre", updatedPackage.activeGenre);
+                }
+                if (updatedPackage.activeMood) {
+                    conductor.socket.emit("activeMood", updatedPackage.activeMood);
                 }
                 // Update the conductor's user specs with new context
                 conductor.updateUserSpecs();
@@ -123,9 +135,14 @@ export const registerSocketHandlers = (io) => {
                 io.emit("bioUpdate", bioUpdate);
             }
         }
-        const conductor = conductors.get(socket.id);
-        if (conductor && !conductor.isWaitingForCamera) {
-            handleBioUpdate(packet, conductor);
+
+        // Broadcast bio update to ALL active conductors (not just this socket's conductor)
+        for (const [socketId, conductor] of conductors.entries()) {
+            if (conductor && !conductor.isWaitingForCamera) {
+                handleBioUpdate(packet, conductor);
+                // Update the conductor's prompts with new BPM/key from bio data
+                conductor.updateUserSpecs();
+            }
         }
     });
 

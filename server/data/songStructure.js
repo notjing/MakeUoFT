@@ -82,6 +82,7 @@ export function handleUserUpdate(data) {
 export function handleBioUpdate(packet, conductor) {
     if (!conductor) return;
     const {bpm, gsr, temp} = packet.data;
+    console.log("BPM:", bpm, "GSR:", gsr, "Temp:", temp);
 
     const keyCalc = (36 - temp) + (50 - gsr) + (80 - bpm)
 
@@ -113,6 +114,10 @@ export function handleCameraContext(raw_data) {
                     nextInstruments[instName] = true;
                 }
             });
+        }
+
+        if (data.genre){
+            activeContext.genre = data.genre;
         }
 
         activeContext.instruments = nextInstruments;
@@ -170,9 +175,6 @@ export const generateSongPackage = () => {
         return getInst('melody');
     };
 
-    const globalContext = `YOU MUST PLAY THE INSTRUMENTS PROVIDED. YOU CAN ONLY PLAY FROM THE INSTRUMENTS PROVIDED. THE LAST TWO MESSAGES ARE THE MOST IMPORTANT CRITERIA. IF YOU ARE REQUESTED TO INCORPORATE AN INSTRUMENT, DO NOT IGNORE IT BECAUSE OF THE GENRE/MOOD.
-  Key: ${key}. Genre: ${genre}. Mood: ${mood}.  BPM: 124. High Fidelity.`;
-
 
     // 7. Dynamic prompt helpers based on genre/mood
     const getGenreStyle = () => {
@@ -226,86 +228,93 @@ export const generateSongPackage = () => {
 
     // Build instrument list string for prompts
     console.log("Active Band:", band);
-    const activeList = band.length > 0 ? band.join(", ") : "synthesizers";
+    const activeList = band.length > 0 ? band.join(", ") : "Piano";
     const primaryMelody = getInst('melody');
     const primaryHarmony = getInst('harmony');
     const primaryBass = getInst('bass');
     const primaryPercussion = getInst('percussion');
 
-    // 8. Generate Timeline with dynamic, context-aware prompts
-    const instrumentRestriction = `PLEASE ONLY PLAY FROM THE AVAILABLE INSTRUMENTS: ${activeList}.`;
+    // Frame as a specific recording session with only these instruments present
+    const globalContext = `Studio recording session with exactly these instruments in the room: ${activeList}. 
+This is a ${genre} track in ${key}, ${mood} mood, ${activeContext.bpm} BPM.
+The only musicians present are playing: ${activeList}. No other instruments exist in this recording. All instruments should not have any super long periods of silence.
+MIXING: ${primaryMelody} is the loudest and most powerful instrument in the mix, sitting on top. Percussion should not overpower any instrument.
+All other instruments are mixed quieter to support ${primaryMelody}.`;
+
+    // 8. Generate Timeline - each prompt explicitly states the ONLY instruments being recorded
+    // MELODY INSTRUMENT (${primaryMelody}) should be featured prominently in every section and LOUDEST in the mix
     const timeline = [
         {
             id: "Intro",
             durationMs: 20_000,
-            prompt: `${genre} intro. ${texture}. Sparse ${primaryHarmony} establishing the ${key} tonality. Gentle ${primaryPercussion} pulse emerging. ${instrumentRestriction}`,
+            prompt: `Recording: ${activeList} playing a ${genre} intro. ${primaryMelody} plays the opening melody LOUD and upfront, gentle and inviting. ${primaryHarmony} supports quietly with soft chords. ${primaryPercussion} adds gentle rhythm in the background. ${texture}. ${primaryMelody} is the loudest, lead voice. Mix: ${primaryMelody} on top, others underneath. This recording contains: ${activeList}.`,
             transitionWindowMs: 0,
             transitionInstruction: null
         },
         {
             id: "Intro Build",
             durationMs: 10_000,
-            prompt: `Continue ${genre} style. Atmospheric ${primaryHarmony} with filtered rhythm on ${primaryPercussion}. Low energy, ${mood} vibe. ${primaryMelody} textures beginning to emerge. ${instrumentRestriction}`,
+            prompt: `Live recording of ${activeList}. ${genre} atmosphere builds. ${primaryMelody} plays an expressive melodic phrase LOUDLY, building intensity. ${primaryHarmony} creates quiet texture underneath. ${primaryPercussion} establishes groove at lower volume. ${primaryMelody} leads the ensemble at highest volume. Mix: ${primaryMelody} dominant. Only these instruments are audible: ${activeList}.`,
             transitionWindowMs: 5_000,
-            transitionInstruction: `Slowly opening the filter, ${primaryBass} starting to pulse, introducing ${primaryMelody} motifs.`
+            transitionInstruction: `${primaryBass} becomes prominent, ${primaryMelody} melody develops further, staying loudest.`
         },
         {
             id: "Verse 1",
             durationMs: 15_000,
-            prompt: `${genre} verse. ${primaryPercussion} establishes steady ${genre} groove. ${primaryHarmony} playing characteristic ${genre} chord voicings. ${primaryBass} locking in with the rhythm. ${texture}. ${instrumentRestriction}`,
+            prompt: `${genre} verse. ${primaryMelody} plays the verse melody LOUD, lyrical and flowing, sitting on top of the mix. ${primaryPercussion} groove quietly. ${primaryHarmony} chords softly. ${primaryBass} bass line underneath. ${texture}. ${primaryMelody} carries the main tune at highest volume. Mix levels: ${primaryMelody} loudest, others support. Isolated recording of: ${activeList}.`,
             transitionWindowMs: 4_000,
-            transitionInstruction: `Building tension with rising ${primaryMelody} phrases and intensifying ${primaryPercussion}.`
+            transitionInstruction: `${primaryMelody} melody intensifies, staying loudest, energy builds.`
         },
         {
             id: "Build-Up",
             durationMs: 5_000,
-            prompt: `${genre} build-up section. ${primaryPercussion} rolling and building momentum. Rising pitch on ${primaryMelody}. High tension, anticipation. No bass, creating space for the drop. ${instrumentRestriction}`,
+            prompt: `${genre} build. ${primaryMelody} plays rising melodic figures LOUD and upfront, building anticipation. ${primaryPercussion} rolls quietly. Tension mounts. ${primaryMelody} reaches higher notes, loudest in mix. Mix: ${primaryMelody} dominates. Recording of ${activeList}.`,
             transitionWindowMs: 1_500,
-            transitionInstruction: `Sudden silence, then massive ${genre}-style impact.`
+            transitionInstruction: `Pause, then ${primaryMelody} enters LOUD with the hook.`
         },
         {
             id: "Chorus (Drop)",
             durationMs: 15_000,
-            prompt: `Peak ${genre} energy! Full ${texture}. Heavy ${primaryBass} driving the low end. Powerful ${primaryPercussion} groove. ${primaryMelody} playing the main hook. ${primaryHarmony} filling the spectrum. Maximum ${mood} intensity. ${instrumentRestriction}`,
+            prompt: `${genre} chorus! ${primaryMelody} plays the main hook melody LOUD and powerful, sitting on top of the mix. ${primaryBass} heavy but underneath. ${primaryPercussion} driving but below melody. ${primaryHarmony} full but supportive. ${mood} peak. ${primaryMelody} soars LOUDEST above everything. Mix: ${primaryMelody} at maximum, others lower. Full band recording: ${activeList}.`,
             transitionWindowMs: 5_000,
-            transitionInstruction: `Energy gradually fading, ${primaryBass} becoming sparse, ${primaryPercussion} simplifying.`
+            transitionInstruction: `Energy reduces, ${primaryMelody} melody softens but stays loudest.`
         },
         {
             id: "Interlude",
             durationMs: 10_000,
-            prompt: `Stripped back ${genre} groove. Just ${primaryBass} and ${primaryHarmony} interplay. Spacey reverb, atmospheric textures. ${mood} undertones. Breathing room. ${instrumentRestriction}`,
+            prompt: `${genre} interlude. ${primaryMelody} plays a gentle, reflective melody UPFRONT and clear. ${primaryBass} and ${primaryHarmony} provide sparse, quiet support. ${mood} atmosphere. ${primaryMelody} sings sweetly at highest volume. Mix: ${primaryMelody} prominent, others ambient. Session musicians: ${activeList}.`,
             transitionWindowMs: 3_000,
-            transitionInstruction: `${primaryMelody} re-entering with a new melodic idea.`
+            transitionInstruction: `${primaryMelody} melody builds again, staying on top.`
         },
         {
             id: "Solo",
             durationMs: 15_000,
-            prompt: `${genre}-style solo section. ${primaryPercussion} maintaining the groove. ${primaryMelody} taking an expressive, improvised solo with ${mood} character. Virtuosic but fitting the ${genre} aesthetic. ${instrumentRestriction}`,
+            prompt: `${genre} solo. ${primaryMelody} takes center stage LOUD with a virtuosic, improvised solo melody. Fast runs, expressive bends, emotional playing at MAXIMUM VOLUME. ${primaryPercussion} accompanies quietly. ${primaryMelody} is the star, loudest instrument. Mix: ${primaryMelody} way up front, everything else way back. Recording session with: ${activeList}.`,
             transitionWindowMs: 5_000,
-            transitionInstruction: `${primaryMelody} solo fading, drums becoming sparse, preparing for breakdown.`
+            transitionInstruction: `${primaryMelody} solo winds down gracefully, still loudest.`
         },
         {
             id: "Bridge",
             durationMs: 10_000,
-            prompt: `Emotional ${genre} breakdown. Minimal percussion. ${primaryHarmony} playing lush, ${mood} chords. Cinematic ${texture}. Building anticipation for final section. ${instrumentRestriction}`,
+            prompt: `${genre} bridge. ${primaryMelody} plays a tender, emotional melody CLEARLY and upfront. ${primaryHarmony} plays ${mood} chords quietly underneath. Soft dynamics but ${primaryMelody} still loudest. ${primaryMelody} expresses deep feeling at top of mix. Mix: ${primaryMelody} clear and present. Studio recording of: ${activeList}.`,
             transitionWindowMs: 4_000,
-            transitionInstruction: `${primaryPercussion} building rapidly, rising tension, anticipating the final climax.`
+            transitionInstruction: `${primaryPercussion} builds quietly, ${primaryMelody} prepares for loud finale.`
         },
         {
             id: "Final Chorus",
             durationMs: 15_000,
-            prompt: `Ultimate ${genre} climax! All instruments at full power: ${activeList}. ${texture} at maximum. ${primaryMelody} playing euphoric hook, ${primaryPercussion} at full energy, ${primaryBass} driving hard. Peak ${mood} emotion. ${instrumentRestriction}`,
+            prompt: `${genre} finale! ${primaryMelody} plays the triumphant final melody at FULL POWER, LOUDEST in the mix. Maximum energy. ${primaryPercussion} powerful but below melody. ${primaryBass} driving but underneath. ${primaryHarmony} full but supporting. ${primaryMelody} is glorious, soaring, and DOMINANT in volume. Mix: ${primaryMelody} at absolute maximum. Full band: ${activeList}.`,
             transitionWindowMs: 5_000,
-            transitionInstruction: `Instruments dropping out one by one, leaving space.`
+            transitionInstruction: `Instruments exit, ${primaryMelody} plays final notes LOUD and clear.`
         },
         {
             id: "Outro",
             durationMs: 10_000,
-            prompt: `${genre} outro. Just ${primaryPercussion} and ${primaryBass} remaining. ${mood} resolution. Fading into reverb, tempo gently slowing. Peaceful ending in ${key}. ${instrumentRestriction}`,
+            prompt: `${genre} outro. ${primaryMelody} plays a fading, gentle closing melody, still the LOUDEST and clearest element. ${primaryPercussion} and ${primaryBass} fade out quietly. ${mood} resolution in ${key}. ${primaryMelody} has the last word, upfront in the mix. Mix: ${primaryMelody} on top until the end. Final notes from: ${activeList}.`,
             transitionWindowMs: 0,
             transitionInstruction: null
         }
     ];
 
-    return {globalContext, timeline, activeInstruments: band};
+    return {globalContext, timeline, activeInstruments: band, activeGenre: genre, activeMood: mood};
 };
