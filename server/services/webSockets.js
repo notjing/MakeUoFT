@@ -1,4 +1,3 @@
-// services/socketHandler.js
 import { createLyriaSession } from "./lyria.js"; 
 import { SongConductor } from "./conductor.js";  
 import { 
@@ -8,7 +7,7 @@ import {
     generateSongPackage 
 } from "../data/songStructure.js"; 
 
-let print_counter = 0
+let print_counter = 0;
 const conductors = new Map();
 
 export const registerSocketHandlers = (io) => {
@@ -59,6 +58,7 @@ export const registerSocketHandlers = (io) => {
       }
     });
 
+    // --- Camera Data Handler ---
     socket.on("camera_data", (data) => {
         console.log(`[${socket.id}] Camera data received:`, data);
 
@@ -70,6 +70,14 @@ export const registerSocketHandlers = (io) => {
         // Broadcast camera data to ALL conductors
         let anyStarted = false;
         for (const [socketId, conductor] of conductors.entries()) {
+            
+            // ── NEW: EMIT VISUAL REASONING ─────────────────────────────
+            // If the camera data contains reasoning, send it to the frontend
+            if (data.visual_reasoning) {
+                conductor.socket.emit("cameraContext", data.visual_reasoning);
+            }
+            // ───────────────────────────────────────────────────────────
+
             if (conductor.isWaitingForCamera) {
                 console.log(`[${socketId}] Camera data broadcast received. UNMUTING and STARTING.`);
 
@@ -116,12 +124,13 @@ export const registerSocketHandlers = (io) => {
         }
     });
 
+    // --- Bio Data Handler ---
     socket.on("receiveBioPacket", (raw_packet) => {
-        const packet = JSON.parse(raw_packet)
-        print_counter += 1
+        const packet = JSON.parse(raw_packet);
+        print_counter += 1;
         if (print_counter > 10) {
             console.log(`[${socket.id}] 10 Bio Packets Received:`, packet);
-            print_counter = 0
+            print_counter = 0;
         }
         else if (print_counter % 5 === 4){
             // Broadcast bio data to all clients so they can update their displays

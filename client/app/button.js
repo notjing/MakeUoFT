@@ -85,6 +85,9 @@ export default function Button() {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [activeTab, setActiveTab] = useState("INSTRUMENTS");
   const [metrics, setMetrics] = useState({ bpm: "--", temp: "--", sweat: "--" });
+  
+  // 1. NEW STATE FOR VISUAL REASONING
+  const [cameraContext, setCameraContext] = useState("Waiting for vision data...");
 
   const glowAnim  = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -125,7 +128,6 @@ export default function Button() {
   };
 
   // ── BIOMETRICS ──────────────────────────────────────────────────────────────
-  // Biometric data is received from the server via "bioUpdate" socket event
   useEffect(() => {
     if (!isOn) {
       setMetrics({ bpm: "--", temp: "--", sweat: "--" });
@@ -136,7 +138,12 @@ export default function Button() {
   useEffect(() => {
     socket.on("connect", () => console.log("Socket connected"));
     socket.on("disconnect", () => {
-      setIsOn(false); setStatus("READY"); animateToggle(0); stopPulse(); clearAudio();
+      setIsOn(false); 
+      setStatus("READY"); 
+      animateToggle(0); 
+      stopPulse(); 
+      clearAudio();
+      setCameraContext("Waiting for vision data..."); // Reset context on disconnect
     });
     
     socket.on("musicStarted", () => { setStatus("STREAMING"); startPulse(); animateToggle(1); });
@@ -163,8 +170,12 @@ export default function Button() {
       }
     });
 
+    // 2. NEW LISTENER FOR CAMERA CONTEXT
+    socket.on("cameraContext", (reasoning) => {
+      setCameraContext(reasoning);
+    });
+
     socket.on("bioUpdate", (bioData) => {
-      console.log("bioUpdate received:", bioData);
       if (bioData) {
         setMetrics(prev => ({
           bpm: bioData.bpm !== undefined && bioData.bpm !== null ? Math.floor(bioData.bpm) : prev.bpm,
@@ -194,7 +205,6 @@ export default function Button() {
   }, []);
 
   // ── SELECTION LOGIC ─────────────────────────────────────────────────────────
-  
   useEffect(() => {
     const newCounts = { BASS: 0, HARMONY: 0, MELODY: 0, PERCUSSION: 0 };
     selectedInstruments.forEach((inst) => {
@@ -333,11 +343,22 @@ export default function Button() {
               </Animated.View>
             </Animated.View>
           </View>
+          
+          {/* Biometrics */}
           <View style={styles.statsContainer}>
             <View style={styles.statBox}><Text style={styles.statLabel}>HR (BPM)</Text><Text style={[styles.statValue, { color: '#ff3366' }]}>{metrics.bpm}</Text></View>
             <View style={styles.statDivider} /><View style={styles.statBox}><Text style={styles.statLabel}>TEMP (°C)</Text><Text style={[styles.statValue, { color: '#00ccff' }]}>{metrics.temp}</Text></View>
             <View style={styles.statDivider} /><View style={styles.statBox}><Text style={styles.statLabel}>GSR (SWEAT)</Text><Text style={[styles.statValue, { color: '#ccff00' }]}>{metrics.sweat}</Text></View>
           </View>
+
+          {/* 3. VISUAL REASONING DISPLAY */}
+          <View style={styles.contextContainer}>
+            <Text style={styles.contextLabel}>VISION CONTEXT</Text>
+            <ScrollView style={styles.contextScroll} nestedScrollEnabled={true} showsVerticalScrollIndicator={true}>
+              <Text style={styles.contextText}>{cameraContext}</Text>
+            </ScrollView>
+          </View>
+
         </View>
         <Modal animationType="slide" transparent={true} visible={settingsVisible} onRequestClose={() => setSettingsVisible(false)}>
           <View style={styles.modalOverlay}>
@@ -405,5 +426,34 @@ const styles = StyleSheet.create({
   chipDisabled: { opacity: 0.1, borderColor: 'transparent' },
   chipText: { fontSize: 13, color: "#6a6a8a", fontWeight: "500" },
   chipTextSelected: { color: "#ffffff", fontWeight: "600", textShadowColor: "rgba(0,102,255,0.5)", textShadowRadius: 4 },
-  chipTextDisabled: { color: "#1a1a2a" }
+  chipTextDisabled: { color: "#1a1a2a" },
+  
+  // 4. NEW STYLES
+  contextContainer: {
+    marginTop: 20,
+    width: 300, 
+    height: 100, 
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  contextLabel: {
+    fontSize: 10,
+    color: '#0066ff',
+    fontWeight: '700',
+    letterSpacing: 2,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  contextScroll: {
+    flex: 1,
+  },
+  contextText: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.8)',
+    lineHeight: 18,
+    fontStyle: 'italic',
+  },
 });
