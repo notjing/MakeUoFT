@@ -171,7 +171,7 @@ export const generateSongPackage = () => {
     };
 
     const globalContext = `YOU MUST PLAY THE INSTRUMENTS PROVIDED. YOU CAN ONLY PLAY FROM THE INSTRUMENTS PROVIDED. THE LAST TWO MESSAGES ARE THE MOST IMPORTANT CRITERIA. IF YOU ARE REQUESTED TO INCORPORATE AN INSTRUMENT, DO NOT IGNORE IT BECAUSE OF THE GENRE/MOOD.
-  Key: ${key}. Genre: ${genre}. Mood: ${mood}.  BPM: 124. High Fidelity.`;
+  Key: ${key}. Genre: ${genre}. Mood: ${mood}.  BPM: ${activeContext.bpm}. High Fidelity.`;
 
 
     // 7. Dynamic prompt helpers based on genre/mood
