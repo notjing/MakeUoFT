@@ -67,7 +67,7 @@ export const registerSocketHandlers = (io) => {
 
         handleCameraContext(data);
 
-        // Broadcast camera data to ALL waiting conductors
+        // Broadcast camera data to ALL conductors
         let anyStarted = false;
         for (const [socketId, conductor] of conductors.entries()) {
             if (conductor.isWaitingForCamera) {
@@ -76,7 +76,7 @@ export const registerSocketHandlers = (io) => {
                 // 1. Generate the band based on this new camera data
                 const initialPackage = generateSongPackage();
                 if (initialPackage.activeInstruments) {
-                    conductor.socket.emit("activeBand", data.activeInstruments);
+                    conductor.socket.emit("activeBand", initialPackage.activeInstruments);
                 }
 
                 // 2. Unmute the audio gate
@@ -86,6 +86,15 @@ export const registerSocketHandlers = (io) => {
                 conductor.start();
 
                 anyStarted = true;
+            } else {
+                // Music is already playing - update instruments from new camera context
+                console.log(`[${socketId}] Camera data received while streaming. Updating instruments.`);
+                const updatedPackage = generateSongPackage();
+                if (updatedPackage.activeInstruments) {
+                    conductor.socket.emit("activeBand", updatedPackage.activeInstruments);
+                }
+                // Update the conductor's user specs with new context
+                conductor.updateUserSpecs();
             }
         }
 
@@ -95,11 +104,24 @@ export const registerSocketHandlers = (io) => {
         }
     });
 
-    socket.on("receiveBioPacket", (packet) => {
+    socket.on("receiveBioPacket", (raw_packet) => {
+        const packet = JSON.parse(raw_packet)
         print_counter += 1
         if (print_counter > 10) {
             console.log(`[${socket.id}] 10 Bio Packets Received:`, packet);
             print_counter = 0
+        }
+        else if (print_counter % 5 === 4){
+            // Broadcast bio data to all clients so they can update their displays
+            if (packet?.data) {
+                const bioUpdate = {
+                    bpm: packet.data.bpm,
+                    temp: packet.data.temp,
+                    sweat: packet.data.gsr
+                };
+                console.log("Emitting bioUpdate:", bioUpdate);
+                io.emit("bioUpdate", bioUpdate);
+            }
         }
         const conductor = conductors.get(socket.id);
         if (conductor && !conductor.isWaitingForCamera) {

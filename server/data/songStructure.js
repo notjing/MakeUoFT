@@ -28,8 +28,7 @@ const pickMultiple = (arr, n) => {
 
 const DEFAULT_INSTRUMENT_MAP = {
   // Percussion / FX
-  "808 Hip Hop Beat": false, "Bongos": false, "Drumline": false, "Funk Drums": false,
-  "Glockenspiel": false, "Marimba": false, "Nuclear Explosion": false,
+  "808 Hip Hop Beat": false, "Bongos": false, "Drumline": false, "Drum Set": false, "Explosions": false,
   "Steel Drum": false, "Timpani": false,
 
   // Bass
@@ -40,12 +39,13 @@ const DEFAULT_INSTRUMENT_MAP = {
   "Accordion": false, "Dirty Synths": false, "Electric Guitar": false,
   "Electric Piano": false, "Flamenco Guitar": false, "Guitar": false,
   "Harmonica": false, "Harp": false, "Harpsichord": false, "Moog Oscillations": false,
-  "Ragtime Piano": false, "Smooth Pianos": false, "Spacey Synths": false,
+  "Smooth Pianos": false, "Spacey Synths": false,
   "Synth Pads": false, "Viola Ensemble": false, "Warm Acoustic Guitar": false,
 
   // Melody
   "Alto Saxophone": false, "Bagpipes": false, "Clarinet": false, "Flute": false,
-  "French Horn": false, "Piccolo": false, "Trombone": false, "Trumpet": false, "Violin": false
+  "French Horn": false, "Piccolo": false, "Trombone": false, "Trumpet": false, "Violin": false,
+  "Glockenspiel": false, "Marimba": false, "Piano": false
 };
 
 let activeContext = {
@@ -95,9 +95,11 @@ export function handleBioUpdate (packet, conductor){
   activeContext.bpm = bpm * 5 / 4 + 17.5;
 }
 
-export function handleCameraContext (data) {
+export function handleCameraContext (raw_data) {
+  const data = JSON.parse(raw_data)
   if (data) {
     console.log("Context Received:", data);
+    console.log(data.instruments)
     
     activeContext.genre = data.genre || null;
     activeContext.moods = data.moods || [];
@@ -178,75 +180,133 @@ export const generateSongPackage = () => {
   Key: ${key}. Genre: ${genre}. Mood: ${mood}.  BPM: 124. High Fidelity.`;
   
 
-  // 7. Generate Timeline
+  // 7. Dynamic prompt helpers based on genre/mood
+  const getGenreStyle = () => {
+    const genreStyles = {
+      // Electronic
+      "EDM": "four-on-the-floor electronic dance",
+      "House": "groovy house with shuffled hi-hats",
+      "Techno": "hypnotic repetitive techno",
+      "Ambient": "ethereal ambient soundscape",
+      "Synthwave": "retro 80s synthwave",
+      "Drum and Bass": "fast-paced jungle breakbeats",
+      // Acoustic/Traditional
+      "Jazz": "improvisational jazz swing",
+      "Classical": "orchestral classical",
+      "Folk": "acoustic folk storytelling",
+      "Blues": "soulful blues with bent notes",
+      "Country": "twangy country",
+      // Modern
+      "Hip Hop": "boom-bap hip hop groove",
+      "R&B": "smooth R&B with neo-soul",
+      "Pop": "catchy pop hooks",
+      "Rock": "driving rock energy",
+      "Metal": "aggressive metal power",
+      "Indie": "lo-fi indie aesthetic",
+      // World
+      "Latin": "Latin rhythms with clave patterns",
+      "Reggae": "offbeat reggae skank",
+      "Afrobeat": "polyrhythmic afrobeat"
+    };
+    return genreStyles[genre] || `${genre}-inspired`;
+  };
+
+  const getMoodTexture = () => {
+    const moodTextures = {
+      "happy": "bright, uplifting energy",
+      "sad": "melancholic, introspective tones",
+      "energetic": "high-octane, driving intensity",
+      "calm": "peaceful, serene atmosphere",
+      "dark": "brooding, mysterious undertones",
+      "uplifting": "soaring, euphoric feeling",
+      "aggressive": "intense, powerful attack",
+      "dreamy": "hazy, floating textures",
+      "nostalgic": "warm, vintage character",
+      "epic": "cinematic, grandiose scale"
+    };
+    return moodTextures[mood] || `${mood} feeling`;
+  };
+
+  const style = getGenreStyle();
+  const texture = getMoodTexture();
+
+  // Build instrument list string for prompts
+  const activeList = band.length > 0 ? band.join(", ") : "synthesizers";
+  const primaryMelody = getInst('melody');
+  const primaryHarmony = getInst('harmony');
+  const primaryBass = getInst('bass');
+  const primaryPercussion = getInst('percussion');
+
+  // 8. Generate Timeline with dynamic, context-aware prompts
   const timeline = [
     {
       id: "Intro",
       durationMs: 20_000,
-      prompt: `PLAY THE CELLO PLEASE`,
-      transitionWindowMs: 0, 
+      prompt: `${style} intro. ${texture}. Sparse ${primaryHarmony} establishing the ${key} tonality. Gentle ${primaryPercussion} pulse emerging. Available instruments: ${activeList}.`,
+      transitionWindowMs: 0,
       transitionInstruction: null 
     },
     {
-      durationMs: 10_000, 
-      prompt: `Atmospheric ${getInst('harmony')}, filtered rhythm on ${getInst('percussion')}, low energy, ${mood} vibe.`,
-      transitionWindowMs: 5_000, 
-      transitionInstruction: `Slowly opening the filter, introducing ${getInst('melody')} textures.`
+      id: "Intro Build",
+      durationMs: 10_000,
+      prompt: `Continue ${genre} style. Atmospheric ${primaryHarmony} with filtered rhythm on ${primaryPercussion}. Low energy, ${mood} vibe. ${primaryMelody} textures beginning to emerge.`,
+      transitionWindowMs: 5_000,
+      transitionInstruction: `Slowly opening the filter, ${primaryBass} starting to pulse, introducing ${primaryMelody} motifs.`
     },
     {
       id: "Verse 1",
       durationMs: 15_000,
-      prompt: `Steady groove on ${getInst('percussion')}, ${getInst('harmony')} playing minimal stabs, driving beat.`,
+      prompt: `${style} verse. ${primaryPercussion} establishes steady ${genre} groove. ${primaryHarmony} playing characteristic ${genre} chord voicings. ${primaryBass} locking in with the rhythm. ${texture}.`,
       transitionWindowMs: 4_000,
-      transitionInstruction: `Adding a rising white noise sweeper and ${getInst('melody')} riffs to build tension.`
+      transitionInstruction: `Building tension with rising ${primaryMelody} phrases and intensifying ${primaryPercussion}.`
     },
     {
       id: "Build-Up",
       durationMs: 5_000,
-      prompt: `No bass, ${getInst('percussion')} rolling and doubling in speed, rising pitch on the ${getInst('melody')}, high tension.`,
+      prompt: `${genre} build-up section. ${primaryPercussion} rolling and building momentum. Rising pitch on ${primaryMelody}. High tension, anticipation. No bass, creating space for the drop.`,
       transitionWindowMs: 1_500,
-      transitionInstruction: "A sudden silence for one beat, then a massive impact."
+      transitionInstruction: `Sudden silence, then massive ${genre}-style impact.`
     },
     {
       id: "Chorus (Drop)",
       durationMs: 15_000,
-      prompt: `Maximum energy, heavy ${getInst('bass')} bassline, loud ${getInst('percussion')} impact, main lead melody on ${getInst('melody')} playing full volume.`,
+      prompt: `Peak ${genre} energy! Full ${texture}. Heavy ${primaryBass} driving the low end. Powerful ${primaryPercussion} groove. ${primaryMelody} playing the main hook. ${primaryHarmony} filling the spectrum. Maximum ${mood} intensity.`,
       transitionWindowMs: 5_000,
-      transitionInstruction: `Energy fading out, removing the ${getInst('bass')}, simplifying the ${getInst('percussion')}.`
+      transitionInstruction: `Energy gradually fading, ${primaryBass} becoming sparse, ${primaryPercussion} simplifying.`
     },
     {
       id: "Interlude",
       durationMs: 10_000,
-      prompt: `Stripped back groove, just ${getInst('bass')} and ${getInst('harmony')}, atmospheric vocal chops, spacey reverb.`,
+      prompt: `Stripped back ${genre} groove. Just ${primaryBass} and ${primaryHarmony} interplay. Spacey reverb, atmospheric textures. ${mood} undertones. Breathing room.`,
       transitionWindowMs: 3_000,
-      transitionInstruction: `Introducing a new melodic element, a ${getInst('melody')} melody.`
+      transitionInstruction: `${primaryMelody} re-entering with a new melodic idea.`
     },
     {
       id: "Solo",
       durationMs: 15_000,
-      prompt: `Driving ${getInst('percussion')} beat with a complex, improvised ${getInst('melody')} solo, virtuoso scales, expressive pitch bending.`,
+      prompt: `${genre}-style solo section. ${primaryPercussion} maintaining the groove. ${primaryMelody} taking an expressive, improvised solo with ${mood} character. Virtuosic but fitting the ${genre} aesthetic.`,
       transitionWindowMs: 5_000,
-      transitionInstruction: `The ${getInst('melody')} solo fading into the background, drums becoming sparse.`
+      transitionInstruction: `${primaryMelody} solo fading, drums becoming sparse, preparing for breakdown.`
     },
     {
       id: "Bridge",
       durationMs: 10_000,
-      prompt: `Breakdown, no drums, washing ${getInst('harmony')} chords, emotional and cinematic texture.`,
+      prompt: `Emotional ${genre} breakdown. Minimal percussion. ${primaryHarmony} playing lush, ${mood} chords. Cinematic ${texture}. Building anticipation for final section.`,
       transitionWindowMs: 4_000,
-      transitionInstruction: `Rapidly building ${getInst('percussion')} roll, rising pitch riser, anticipation for the final drop.`
+      transitionInstruction: `${primaryPercussion} building rapidly, rising tension, anticipating the final climax.`
     },
     {
       id: "Final Chorus",
       durationMs: 15_000,
-      prompt: `Explosive energy, euphoric melody on ${getInst('melody')}, full ${getInst('percussion')} rhythm, full frequency spectrum.`,
+      prompt: `Ultimate ${genre} climax! All instruments at full power: ${activeList}. ${texture} at maximum. ${primaryMelody} playing euphoric hook, ${primaryPercussion} at full energy, ${primaryBass} driving hard. Peak ${mood} emotion.`,
       transitionWindowMs: 5_000,
-      transitionInstruction: `Instruments dropping out one by one, leaving only the beat.`
+      transitionInstruction: `Instruments dropping out one by one, leaving space.`
     },
     {
       id: "Outro",
       durationMs: 10_000,
-      prompt: `Just the ${getInst('percussion')} and ${getInst('bass')}, fading into reverb, music slowing down.`,
-      transitionWindowMs: 0, 
+      prompt: `${genre} outro. Just ${primaryPercussion} and ${primaryBass} remaining. ${mood} resolution. Fading into reverb, tempo gently slowing. Peaceful ending in ${key}.`,
+      transitionWindowMs: 0,
       transitionInstruction: null 
     }
   ];

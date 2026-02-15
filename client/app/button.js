@@ -125,24 +125,11 @@ export default function Button() {
   };
 
   // ── BIOMETRICS ──────────────────────────────────────────────────────────────
+  // Biometric data is received from the server via "bioUpdate" socket event
   useEffect(() => {
-    let interval;
-    if (isOn) {
-      let currentBpm = 75; let currentTemp = 36.6; let currentSweat = 12;
-      interval = setInterval(() => {
-        currentBpm += (Math.random() - 0.5) * 4;
-        currentTemp += (Math.random() - 0.5) * 0.1;
-        currentSweat += (Math.random() - 0.5) * 2;
-        setMetrics({
-          bpm: Math.floor(Math.max(60, Math.min(140, currentBpm))),
-          temp: currentTemp.toFixed(1),
-          sweat: Math.max(0, Math.floor(currentSweat)) + "%"
-        });
-      }, 2000);
-    } else {
+    if (!isOn) {
       setMetrics({ bpm: "--", temp: "--", sweat: "--" });
     }
-    return () => clearInterval(interval);
   }, [isOn]);
 
   // ── SOCKET & AUDIO ─────────────────────────────────────────────────────────
@@ -161,6 +148,17 @@ export default function Button() {
     socket.on("activeBand", (activeInstruments) => {
       if (Array.isArray(activeInstruments)) {
         setSelectedInstruments(prev => prev.size === 0 ? new Set(activeInstruments) : prev);
+      }
+    });
+
+    socket.on("bioUpdate", (bioData) => {
+      console.log("bioUpdate received:", bioData);
+      if (bioData) {
+        setMetrics(prev => ({
+          bpm: bioData.bpm !== undefined && bioData.bpm !== null ? Math.floor(bioData.bpm) : prev.bpm,
+          temp: bioData.temp !== undefined && bioData.temp !== null ? Number(bioData.temp).toFixed(1) : prev.temp,
+          sweat: bioData.sweat !== undefined && bioData.sweat !== null ? bioData.sweat + "%" : prev.sweat
+        }));
       }
     });
 
