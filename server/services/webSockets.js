@@ -58,8 +58,7 @@ export const registerSocketHandlers = (io) => {
       }
     });
 
-    // --- Camera Context Handler (The Trigger) ---
-    socket.on("receiveCameraContext", (data) => {
+    socket.on("camera_data", (data) => {
         const conductor = conductors.get(socket.id);
         if (!conductor) return;
 
